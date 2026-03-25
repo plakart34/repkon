@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { storage } from '@/lib/storage'
 import { supabase } from '@/lib/supabase'
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react'
 
@@ -19,26 +18,21 @@ export default function Login() {
         setError('')
 
         try {
-            // 1. Try Supabase Auth First
+            // Supabase Auth Login
             const { data, error: sbError } = await supabase.auth.signInWithPassword({
                 email,
                 password
             })
 
             if (data?.user) {
+                // Success: Redirect to dashboard
                 window.location.href = '/'
                 return
-            }
-
-            // 2. Fallback to Mock LocalStorage Login (Legacy)
-            const user = storage.login(email, password)
-            if (user) {
-                window.location.href = '/'
             } else {
                 setError(sbError?.message || 'E-posta veya şifre hatalı.')
             }
         } catch (err) {
-            setError('Sistem hatası. Lütfen tekrar deneyin.')
+            setError('Sistem hatası. Lütfen bağlantınızı kontrol edin.')
         } finally {
             setLoading(false)
         }
@@ -94,7 +88,16 @@ export default function Login() {
                     </button>
                 </form>
 
-                <p style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+                    <a
+                        href="/admin/bootstrap"
+                        style={{ fontSize: '0.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}
+                    >
+                        İlk Kez Mi Giriyorsunuz? Admin Kurulumu Yapın
+                    </a>
+                </div>
+
+                <p style={{ marginTop: '2.5rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                     Varsayılan şifre ile giriş yaptıktan sonra şifrenizi profil ayarlarından güncelleyebilirsiniz.
                 </p>
             </div>

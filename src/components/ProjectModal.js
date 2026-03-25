@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { storage } from '@/lib/storage'
+
+import { supabase } from '@/lib/supabase'
 import { X, Briefcase, AlertCircle, Calendar } from 'lucide-react'
 
 export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialData = null, isAdmin = false }) {
@@ -12,18 +13,22 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
         name: '',
         status: 'Aktif',
         progress: 0,
-        estStart: '',
-        estShipment: '',
-        responsibleEngineer: '',
-        countryOfOrigin: '',
-        actualStart: '',
-        actualEnd: ''
+        est_start: '',
+        est_shipment: '',
+        responsible_engineer: '',
+        country_of_origin: '',
+        actual_start: '',
+        actual_end: ''
     })
 
     const [profiles, setProfiles] = useState([])
 
     useEffect(() => {
-        setProfiles(storage.getProfiles())
+        const fetchProfiles = async () => {
+            const { data } = await supabase.from('profiles').select('*')
+            setProfiles(data || [])
+        }
+        fetchProfiles()
     }, [])
 
     useEffect(() => {
@@ -32,24 +37,24 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
                 name: initialData.name || '',
                 status: initialData.status || 'Aktif',
                 progress: initialData.progress || 0,
-                estStart: initialData.estStart || '',
-                estShipment: initialData.estShipment || '',
-                responsibleEngineer: initialData.responsibleEngineer || '',
-                countryOfOrigin: initialData.countryOfOrigin || '',
-                actualStart: initialData.actualStart || '',
-                actualEnd: initialData.actualEnd || ''
+                est_start: initialData.est_start || '',
+                est_shipment: initialData.est_shipment || '',
+                responsible_engineer: initialData.responsible_engineer || '',
+                country_of_origin: initialData.country_of_origin || '',
+                actual_start: initialData.actual_start || '',
+                actual_end: initialData.actual_end || ''
             })
         } else {
             setFormData({
                 name: '',
                 status: 'Aktif',
                 progress: 0,
-                estStart: '',
-                estShipment: '',
-                responsibleEngineer: '',
-                countryOfOrigin: '',
-                actualStart: '',
-                actualEnd: ''
+                est_start: '',
+                est_shipment: '',
+                responsible_engineer: '',
+                country_of_origin: '',
+                actual_start: '',
+                actual_end: ''
             })
         }
     }, [initialData, isOpen])
@@ -62,19 +67,25 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
         setError(null)
 
         try {
-            await new Promise(res => setTimeout(res, 500))
-
-            let result
-            if (initialData) {
-                result = storage.updateProject({ ...initialData, ...formData })
-            } else {
-                result = storage.saveProject(formData)
+            const dataToSave = {
+                ...formData,
+                est_start: formData.est_start || null,
+                est_shipment: formData.est_shipment || null,
+                actual_start: formData.actual_start || null,
+                actual_end: formData.actual_end || null
             }
 
-            onProjectAdded(result)
+            if (initialData) {
+                const { error } = await supabase.from('projects').update(dataToSave).eq('id', initialData.id)
+                if (error) throw error
+            } else {
+                const { data, error } = await supabase.from('projects').insert([dataToSave]).select()
+                if (error) throw error
+                onProjectAdded(data[0])
+            }
             onClose()
         } catch (err) {
-            setError('Hata: Proje kaydedilemedi.')
+            setError('Hata: Proje kaydedilemedi. ' + err.message)
         } finally {
             setLoading(false)
         }
@@ -131,8 +142,8 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
                                     type="date"
                                     disabled={!canEdit}
                                     style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', outline: 'none', colorScheme: 'dark' }}
-                                    value={formData.estStart}
-                                    onChange={e => setFormData({ ...formData, estStart: e.target.value })}
+                                    value={formData.est_start}
+                                    onChange={e => setFormData({ ...formData, est_start: e.target.value })}
                                 />
                             </div>
                             <div>
@@ -141,8 +152,8 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
                                     type="date"
                                     disabled={!canEdit}
                                     style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', outline: 'none', colorScheme: 'dark' }}
-                                    value={formData.estShipment}
-                                    onChange={e => setFormData({ ...formData, estShipment: e.target.value })}
+                                    value={formData.est_shipment}
+                                    onChange={e => setFormData({ ...formData, est_shipment: e.target.value })}
                                 />
                             </div>
                         </div>
@@ -157,8 +168,8 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
                                     type="date"
                                     disabled={!canEdit}
                                     style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', outline: 'none', colorScheme: 'dark' }}
-                                    value={formData.actualStart}
-                                    onChange={e => setFormData({ ...formData, actualStart: e.target.value })}
+                                    value={formData.actual_start}
+                                    onChange={e => setFormData({ ...formData, actual_start: e.target.value })}
                                 />
                             </div>
                             <div>
@@ -167,8 +178,8 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
                                     type="date"
                                     disabled={!canEdit}
                                     style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', outline: 'none', colorScheme: 'dark' }}
-                                    value={formData.actualEnd}
-                                    onChange={e => setFormData({ ...formData, actualEnd: e.target.value })}
+                                    value={formData.actual_end}
+                                    onChange={e => setFormData({ ...formData, actual_end: e.target.value })}
                                 />
                             </div>
                         </div>
@@ -180,8 +191,8 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
                             <select
                                 disabled={!canEdit}
                                 style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', outline: 'none' }}
-                                value={formData.responsibleEngineer}
-                                onChange={e => setFormData({ ...formData, responsibleEngineer: e.target.value })}
+                                value={formData.responsible_engineer}
+                                onChange={e => setFormData({ ...formData, responsible_engineer: e.target.value })}
                             >
                                 <option value="">Mühendis Seçin</option>
                                 {profiles.map(p => (
@@ -194,8 +205,8 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
                             <input
                                 disabled={!canEdit}
                                 style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', outline: 'none' }}
-                                value={formData.countryOfOrigin}
-                                onChange={e => setFormData({ ...formData, countryOfOrigin: e.target.value })}
+                                value={formData.country_of_origin}
+                                onChange={e => setFormData({ ...formData, country_of_origin: e.target.value })}
                                 placeholder="Örn: Türkiye, Almanya"
                             />
                         </div>

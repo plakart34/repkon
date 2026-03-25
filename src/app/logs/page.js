@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -22,41 +22,47 @@ export default function LogsPage() {
     const [logs, setLogs] = useState([])
 
     useEffect(() => {
-        if (profile) {
-            // Fetch all operations and extract their histories
-            const allOps = storage.getOperations()
-            const extractedLogs = []
-
-            allOps.forEach(op => {
-                if (op.history && Array.isArray(op.history)) {
-                    op.history.forEach((h, index) => {
-                        extractedLogs.push({
-                            id: `${op.id}-${index}`,
-                            opId: op.id,
-                            orderId: op.orderId,
-                            process: op.process,
-                            projectName: op.projectName,
-                            machineName: op.machineName,
-                            status: h.status,
-                            note: h.note,
-                            timestamp: new Date(h.timestamp),
-                            user: h.user || 'Bilinmiyor',
-                            department: op.responsibleDept || 'Bilinmiyor'
-                        })
-                    })
+        const fetchLogs = async () => {
+            if (profile) {
+                const { data: allOps, error } = await supabase.from('operations').select('*')
+                if (error) {
+                    console.error('Logs fetch error:', error)
+                    return
                 }
-            })
 
-            // Sort logs purely by descending timestamp
-            extractedLogs.sort((a, b) => b.timestamp - a.timestamp)
-            setLogs(extractedLogs)
+                const extractedLogs = []
+                allOps.forEach(op => {
+                    if (op.history && Array.isArray(op.history)) {
+                        op.history.forEach((h, index) => {
+                            extractedLogs.push({
+                                id: `${op.id}-${index}`,
+                                opId: op.id,
+                                orderId: op.order_id,
+                                process: op.process,
+                                projectName: op.project_name,
+                                machineName: op.machine_name,
+                                status: h.status,
+                                note: h.note,
+                                timestamp: new Date(h.timestamp),
+                                user: h.user || 'Bilinmiyor',
+                                department: op.responsible_dept || 'Bilinmiyor'
+                            })
+                        })
+                    }
+                })
+
+                // Sort logs purely by descending timestamp
+                extractedLogs.sort((a, b) => b.timestamp - a.timestamp)
+                setLogs(extractedLogs)
+            }
         }
+        fetchLogs()
     }, [profile])
 
 
     const getStatusIcon = (status) => {
         switch (status) {
-            case 'Bekliyor': return <Timer size={16} color="#facc15" />
+            case 'Bekliyor': return <Timer size={16} color="#fa9e15ff" />
             case 'İşlemde': return <Play size={16} color="#3b82f6" />
             case 'Tamamlandı': return <CheckCircle2 size={16} color="#4ade80" />
             default: return <Activity size={16} />

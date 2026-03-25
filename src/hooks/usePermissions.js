@@ -1,7 +1,4 @@
-'use client'
-
 import { useState, useEffect, useCallback } from 'react'
-import { storage } from '@/lib/storage'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 
@@ -16,12 +13,8 @@ export function usePermissions() {
 
         try {
             const { data: { user } } = await supabase.auth.getUser()
-            const localUser = storage.getCurrentUser()
 
-            const currentUser = user || localUser
-
-            // 1. Unauthenticated users
-            if (!currentUser) {
+            if (!user) {
                 if (pathname !== '/login') {
                     router.replace('/login')
                 }
@@ -29,27 +22,27 @@ export function usePermissions() {
                 return
             }
 
-            // 2. Authenticated users (Supabase or Local)
-            const allRoles = storage.getRoles()
-            let roleId = currentUser.role_id
+            // Fetch profile and join role
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*, roles(*)')
+                .eq('id', user.id)
+                .single()
 
-            // If it's a supabase user, get role from metadata or profile table
-            if (user) {
-                const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-                if (profileData) {
-                    roleId = profileData.role_id
-                }
+            if (profileError || !profileData) {
+                console.error('Profile error:', profileError)
+                setLoading(false)
+                return
             }
 
-            const role = allRoles.find(r => r.id?.toString() === roleId?.toString())
-            const profileWithRole = { ...currentUser, roles: role }
+            // Supabase returns roles as an object if joined
+            const role = profileData.roles
+            const profileWithRole = { ...user, ...profileData, roles: role }
 
-            // Only trigger update if profile changed or is null
-            if (!profile || profile.id !== currentUser.id) {
+            if (!profile || profile.id !== user.id) {
                 setProfile(profileWithRole)
             }
 
-            // 3. Permission check
             const allowedPaths = role?.permissions || []
             const isAdmin = role?.name === 'Admin'
 
@@ -70,8 +63,7 @@ export function usePermissions() {
                 router.replace('/unauthorized')
             }
 
-            // 4. Already logged in check
-            if (pathname === '/login' && currentUser) {
+            if (pathname === '/login' && user) {
                 router.replace('/')
             }
         } catch (error) {
@@ -82,7 +74,6 @@ export function usePermissions() {
     }, [pathname, router, profile])
 
     useEffect(() => {
-        // Run check initially
         checkUser()
     }, [pathname, checkUser])
 

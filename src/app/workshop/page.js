@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -38,31 +38,8 @@ export default function WorkshopPage() {
     const [projects, setProjects] = useState([])
     const [selectedProjectId, setSelectedProjectId] = useState('')
     const [timelineData, setTimelineData] = useState([])
+    const [loading, setLoading] = useState(true)
 
-    const handleContextMenu = (e, opId) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        const menuWidth = 220; // Tahmini menü genişliği
-        const menuHeight = 280; // Tahmini menü yüksekliği
-        const padding = 10; // Ekran kenarından boşluk
-
-        let x = e ? e.clientX : 0;
-        let y = e ? e.clientY : 0;
-
-        // Ekran sınırlarını kontrol et (Sağ ve Alt)
-        if (x + menuWidth > window.innerWidth) {
-            x = window.innerWidth - menuWidth - padding;
-        }
-        if (y + menuHeight > window.innerHeight) {
-            y = window.innerHeight - menuHeight - padding;
-        }
-
-        setMenuPos({ x, y });
-        setActiveOpMenuId(opId);
-    };
     const [machines, setMachines] = useState([])
     const [selectedMachineId, setSelectedMachineId] = useState('')
     const [bomItems, setBomItems] = useState([])
@@ -70,7 +47,7 @@ export default function WorkshopPage() {
     const [members, setMembers] = useState([])
     const [dynamicDepts, setDynamicDepts] = useState([])
     const [activeOpMenuId, setActiveOpMenuId] = useState(null)
-    const [sortBy, setSortBy] = useState('orderId')
+    const [sortBy, setSortBy] = useState('order_id')
     const [sortOrder, setSortOrder] = useState('desc')
 
     const [operations, setOperations] = useState([])
@@ -81,7 +58,6 @@ export default function WorkshopPage() {
     const [selectedOp, setSelectedOp] = useState(null)
     const [statusUpdate, setStatusUpdate] = useState({ status: '', note: '' })
 
-    // Filter States
     const [filterSorumlu, setFilterSorumlu] = useState('')
     const [filterStatu, setFilterStatu] = useState('')
     const [filterProje, setFilterProje] = useState('')
@@ -97,25 +73,46 @@ export default function WorkshopPage() {
         notes: ''
     })
 
-    useEffect(() => {
-        if (profile) {
-            setProjects(storage.getProjects())
-            setOperations(storage.getOperations().reverse())
-            setMembers(storage.getProfiles())
-            const depts = storage.getDepartments().filter(d => d !== 'Yönetim')
-            setDynamicDepts(depts)
-        }
+    const fetchData = async () => {
+        try {
+            setLoading(true)
+            const { data: projData } = await supabase.from('projects').select('*')
+            const { data: opData } = await supabase.from('operations').select('*').order('created_at', { ascending: false })
+            const { data: profData } = await supabase.from('profiles').select('*')
+            const { data: deptData } = await supabase.from('depts').select('*')
 
+            setProjects(projData || [])
+            setOperations(opData || [])
+            setMembers(profData || [])
+            setDynamicDepts((deptData || []).map(d => d.name).filter(n => n !== 'Yönetim'))
+        } catch (err) {
+            console.error('Fetch error:', err)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleContextMenu = (e, opId) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const menuWidth = 220; const menuHeight = 280; const padding = 10;
+        let x = e ? e.clientX : 0; let y = e ? e.clientY : 0;
+        if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - padding;
+        if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - padding;
+        setMenuPos({ x, y });
+        setActiveOpMenuId(opId);
+    };
+
+    useEffect(() => {
+        if (profile) fetchData()
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
-                setIsLogModalOpen(false)
-                setIsStatusModalOpen(false)
-                setIsTimelineModalOpen(false)
-                setSelectedOp(null)
-                setActiveOpMenuId(null)
+                setIsLogModalOpen(false); setIsStatusModalOpen(false);
+                setIsTimelineModalOpen(false); setSelectedOp(null); setActiveOpMenuId(null);
             }
         }
-
         const handleOutsideClick = () => setActiveOpMenuId(null)
         window.addEventListener('click', handleOutsideClick)
         window.addEventListener('keydown', handleKeyDown)
@@ -126,32 +123,38 @@ export default function WorkshopPage() {
     }, [profile])
 
     useEffect(() => {
-        if (selectedProjectId) {
-            setMachines(storage.getMachines(selectedProjectId))
-            setSelectedMachineId('')
-            setBomItems([])
+        const fetchMachines = async () => {
+            if (selectedProjectId) {
+                const { data } = await supabase.from('machines').select('*').eq('project_id', selectedProjectId)
+                setMachines(data || [])
+            } else {
+                setMachines([])
+            }
         }
+        fetchMachines()
     }, [selectedProjectId])
 
     useEffect(() => {
-        if (selectedMachineId) {
-            const ebom = storage.getBOM(selectedMachineId, 'ebom').map(i => ({ ...i, listType: 'eBOM' }))
-            const mbom = storage.getBOM(selectedMachineId, 'mbom').map(i => ({ ...i, listType: 'mBOM' }))
-            setBomItems([...ebom, ...mbom])
+        const fetchBomItems = async () => {
+            if (selectedMachineId) {
+                const { data } = await supabase.from('bom_items').select('*').eq('machine_id', selectedMachineId)
+                setBomItems(data || [])
+            } else {
+                setBomItems([])
+            }
         }
+        fetchBomItems()
     }, [selectedMachineId])
 
-    // Filter Logic
     const filteredOperations = useMemo(() => {
         return operations.filter(op => {
-            const matchSorumlu = !filterSorumlu || op.responsiblePerson === filterSorumlu
+            const matchSorumlu = !filterSorumlu || op.responsible_person === filterSorumlu
             const matchStatu = !filterStatu || op.status === filterStatu
-            const matchProje = !filterProje || op.projectName === filterProje
-            const opMachineFull = `${op.machineName} (${op.machineModel || '-'})`
+            const matchProje = !filterProje || op.project_name === filterProje
+            const opMachineFull = `${op.machine_name} (${op.machine_model || '-'})`
             const matchMakine = !filterMakine || opMachineFull === filterMakine
 
-            // Global search
-            const searchStr = `${op.orderId} ${op.projectName} ${op.machineName} ${op.machineModel} ${op.responsiblePerson} ${op.responsibleDept} ${op.process} ${op.bomCode} ${op.bomName}`.toLowerCase()
+            const searchStr = `${op.order_id} ${op.project_name} ${op.machine_name} ${op.machine_model} ${op.responsible_person} ${op.responsible_dept} ${op.process} ${op.bom_code} ${op.bom_name}`.toLowerCase()
             const matchSearch = !searchTerm || searchStr.includes(searchTerm.toLowerCase())
 
             return matchSorumlu && matchStatu && matchProje && matchMakine && matchSearch
@@ -161,52 +164,55 @@ export default function WorkshopPage() {
     if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: 'white' }}>Yükleniyor...</div>
     if (!profile) return null
 
-    const handleSaveLog = (e) => {
+    const handleSaveLog = async (e) => {
         e.preventDefault()
-        // Bom is now optional
-
-        const bomItem = bomItems.find(b => b.id === selectedBomId)
         const respPerson = members.find(m => m.id === logData.responsiblePersonId)
         const machine = machines.find(m => m.id === selectedMachineId)
 
         const opData = {
-            projectName: projects.find(p => p.id === selectedProjectId)?.name,
-            machineName: machine?.name,
-            machineModel: machine?.model,
-            bomName: bomItem?.name || (selectedOp ? selectedOp.bomName : ''),
-            bomCode: bomItem?.code || (selectedOp ? selectedOp.bomCode : ''),
-            listType: bomItem?.listType || (selectedOp ? selectedOp.listType : ''),
+            project_id: selectedProjectId,
+            project_name: projects.find(p => p.id === selectedProjectId)?.name,
+            machine_id: selectedMachineId,
+            machine_name: machine?.name,
+            machine_model: machine?.model,
             process: logData.process,
-            targetDate: logData.targetDate,
-            responsibleDept: logData.responsibleDept,
-            responsiblePerson: respPerson?.full_name || (selectedOp ? selectedOp.responsiblePerson : ''),
-            notes: logData.notes,
-            userName: profile.full_name
+            target_date: logData.targetDate,
+            responsible_dept: logData.responsibleDept,
+            responsible_person: respPerson?.full_name,
+            responsible_person_id: logData.responsiblePersonId,
+            status: 'Bekliyor',
+            history: [{
+                status: 'Başlatıldı',
+                note: logData.process,
+                timestamp: new Date().toISOString(),
+                user: profile.full_name
+            }]
         }
 
         if (selectedOp) {
-            storage.updateOperation({ ...selectedOp, ...opData })
+            const { error } = await supabase.from('operations').update(opData).eq('id', selectedOp.id)
+            if (error) alert(error.message)
         } else {
-            storage.saveOperation(opData)
+            const { count } = await supabase.from('operations').select('*', { count: 'exact', head: true })
+            const nextId = `RMK-${1001 + (count || 0)}`
+            const { error } = await supabase.from('operations').insert({ ...opData, order_id: nextId })
+            if (error) alert(error.message)
         }
 
-        setOperations(storage.getOperations().reverse())
+        fetchData()
         setIsLogModalOpen(false)
         setSelectedOp(null)
         setLogData({ process: '', targetDate: '', responsibleDept: '', responsiblePersonId: '', notes: '' })
-        setActiveOpMenuId(null) // Close menu after saving/updating
     }
 
     const getSortedOperations = () => {
         return [...filteredOperations].sort((a, b) => {
             let valA = a[sortBy] || '';
             let valB = b[sortBy] || '';
-
-            if (sortBy === 'targetDate') {
+            if (sortBy === 'target_date') {
                 valA = valA ? new Date(valA).getTime() : 0;
                 valB = valB ? new Date(valB).getTime() : 0;
             }
-
             if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
             if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
             return 0;
@@ -226,34 +232,40 @@ export default function WorkshopPage() {
 
     const getTargetDateStyle = (date, status) => {
         if (!date || status === 'Tamamlandı') return { color: 'var(--muted-foreground)', className: '' };
-
         const target = new Date(date);
         const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        target.setHours(0, 0, 0, 0);
-
-        const diffTime = target - now;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+        now.setHours(0, 0, 0, 0); target.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
         if (diffDays < 0) return { color: '#ef4444', className: 'animate-blink', fontWeight: 700 };
         if (diffDays <= 3) return { color: '#facc15', className: '', fontWeight: 700 };
         return { color: 'white', className: '' };
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (window.confirm('Bu aksiyonu silmek istediğinize emin misiniz?')) {
-            storage.deleteOperation(id)
-            setOperations(storage.getOperations().reverse())
+            const { error } = await supabase.from('operations').delete().eq('id', id)
+            if (error) alert(error.message)
+            fetchData()
         }
     }
 
-    const handleStatusChange = (e) => {
+    const handleStatusChange = async (e) => {
         e.preventDefault()
-        const updatedOp = storage.updateOperationStatus(selectedOp.id, statusUpdate.status, statusUpdate.note, profile.full_name)
-        setOperations(storage.getOperations().reverse())
+        const newHistory = [...(selectedOp.history || []), {
+            status: statusUpdate.status,
+            note: statusUpdate.note,
+            timestamp: new Date().toISOString(),
+            user: profile.full_name
+        }]
+        const { error } = await supabase.from('operations').update({
+            status: statusUpdate.status,
+            history: newHistory
+        }).eq('id', selectedOp.id)
+
+        if (error) alert(error.message)
+        fetchData()
         setIsStatusModalOpen(false)
         setStatusUpdate({ status: '', note: '' })
-        setActiveOpMenuId(null) // Close menu after status change
     }
 
     const getStatusColor = (status) => {
@@ -266,7 +278,6 @@ export default function WorkshopPage() {
         }
     }
 
-    // Summary stats
     const stats = {
         total: operations.length,
         active: operations.filter(o => o.status === 'İşlemde').length,
@@ -379,9 +390,9 @@ export default function WorkshopPage() {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', alignItems: 'end' }}>
                         {[
-                            { label: 'Proje', value: filterProje, setter: setFilterProje, options: Array.from(new Set(operations.map(o => o.projectName))), placeholder: 'Tüm Projeler' },
-                            { label: 'Makine (Model)', value: filterMakine, setter: setFilterMakine, options: Array.from(new Set(operations.map(o => `${o.machineName} (${o.machineModel || '-'})`))), placeholder: 'Tüm Makineler' },
-                            { label: 'Sorumlu', value: filterSorumlu, setter: setFilterSorumlu, options: Array.from(new Set(operations.map(o => o.responsiblePerson))), placeholder: 'Tüm Personeller' },
+                            { label: 'Proje', value: filterProje, setter: setFilterProje, options: Array.from(new Set(operations.map(o => o.project_name))), placeholder: 'Tüm Projeler' },
+                            { label: 'Makine (Model)', value: filterMakine, setter: setFilterMakine, options: Array.from(new Set(operations.map(o => `${o.machine_name} (${o.machine_model || '-'})`))), placeholder: 'Tüm Makineler' },
+                            { label: 'Sorumlu', value: filterSorumlu, setter: setFilterSorumlu, options: Array.from(new Set(operations.map(o => o.responsible_person))), placeholder: 'Tüm Personeller' },
                             {
                                 label: 'Statü', value: filterStatu, setter: setFilterStatu,
                                 options: ['Bekliyor', 'İşlemde', 'Tamamlandı', 'Durduruldu'],
@@ -470,14 +481,14 @@ export default function WorkshopPage() {
                                 <thead>
                                     <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                                         {[
-                                            { label: 'No / Statü', key: 'orderId', width: '100px' },
-                                            { label: 'Proje', key: 'projectName' },
-                                            { label: 'Makine', key: 'machineName' },
-                                            { label: 'BOM / Parça', key: 'bomCode' },
+                                            { label: 'No / Statü', key: 'order_id', width: '100px' },
+                                            { label: 'Proje', key: 'project_name' },
+                                            { label: 'Makine', key: 'machine_name' },
+                                            { label: 'BOM / Parça', key: 'bom_code' },
                                             { label: 'Yapılan İşlem', key: 'process' },
-                                            { label: 'Sorumlu Bölüm', key: 'responsibleDept' },
-                                            { label: 'Sorumlu Kişi', key: 'responsiblePerson' },
-                                            { label: 'Hedef Tarih', key: 'targetDate' }
+                                            { label: 'Sorumlu Bölüm', key: 'responsible_dept' },
+                                            { label: 'Sorumlu Kişi', key: 'responsible_person' },
+                                            { label: 'Hedef Tarih', key: 'target_date' }
                                         ].map(col => (
                                             <th
                                                 key={col.key}
@@ -513,32 +524,32 @@ export default function WorkshopPage() {
                                             className="nav-item-mini"
                                         >
                                             <td style={{ padding: '0.75rem' }}>
-                                                <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.orderId}</div>
+                                                <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.order_id}</div>
                                                 <span className="status-badge" style={{ background: getStatusColor(op.status).bg, color: getStatusColor(op.status).text, fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>{op.status}</span>
                                             </td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)' }}>{op.projectName}</td>
+                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)' }}>{op.project_name}</td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
-                                                <div>{op.machineName}</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.machineModel}</div>
+                                                <div>{op.machine_name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.machine_model}</div>
                                             </td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
-                                                <div style={{ fontWeight: 500 }}>{op.bomCode || '-'}</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.bomName}</div>
+                                                <div style={{ fontWeight: 500 }}>{op.bom_code || '-'}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.bom_name}</div>
                                             </td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
                                                 <div style={{ color: 'var(--foreground)' }}>{op.process}</div>
                                             </td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsibleDept}</td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsiblePerson}</td>
+                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsible_dept}</td>
+                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsible_person}</td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
                                                 <div
-                                                    className={getTargetDateStyle(op.targetDate, op.status).className}
+                                                    className={getTargetDateStyle(op.target_date, op.status).className}
                                                     style={{
-                                                        color: getTargetDateStyle(op.targetDate, op.status).color,
-                                                        fontWeight: getTargetDateStyle(op.targetDate, op.status).fontWeight || 400
+                                                        color: getTargetDateStyle(op.target_date, op.status).color,
+                                                        fontWeight: getTargetDateStyle(op.target_date, op.status).fontWeight || 400
                                                     }}
                                                 >
-                                                    {op.targetDate ? new Date(op.targetDate).toLocaleDateString('tr-TR') : '-'}
+                                                    {op.target_date ? new Date(op.target_date).toLocaleDateString('tr-TR') : '-'}
                                                 </div>
                                             </td>
                                             <td style={{ padding: '0.75rem', textAlign: 'right' }}>
@@ -659,7 +670,7 @@ export default function WorkshopPage() {
             {isStatusModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
                     <div className="card animate-fade-in" style={{ width: '450px', padding: '2.5rem', background: 'var(--card)' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{selectedOp?.orderId} / Statü Güncelle</h3>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{selectedOp?.order_id} / Statü Güncelle</h3>
                         <form onSubmit={handleStatusChange}>
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yeni Statü</label>
@@ -693,7 +704,7 @@ export default function WorkshopPage() {
                     <div className="card animate-fade-in" style={{ width: '600px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '90vh', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem', alignItems: 'center' }}>
                             <div>
-                                <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{selectedOp?.orderId} / Süreç Takibi</h3>
+                                <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{selectedOp?.order_id} / Süreç Takibi</h3>
                                 <p style={{ color: 'var(--muted-foreground)', margin: 0 }}>{selectedOp?.process}</p>
                             </div>
                             <button onClick={() => setIsTimelineModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
@@ -751,8 +762,8 @@ export default function WorkshopPage() {
                         return (
                             <>
                                 <div style={{ padding: '0.6rem 0.6rem 0.4rem 0.6rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '0.4rem' }}>
-                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.1rem' }}>{op.orderId}</div>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.projectName}</div>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.1rem' }}>{op.order_id}</div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.project_name}</div>
                                 </div>
                                 <button
                                     onClick={() => { setSelectedOp(op); setStatusUpdate({ status: op.status, note: '' }); setIsStatusModalOpen(true); setActiveOpMenuId(null); }}

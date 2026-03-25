@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -32,14 +32,20 @@ export default function ProjectDetail() {
     // Machine Form
     const [newMachine, setNewMachine] = useState({ name: '', model: '', status: 'Üretimde' })
 
+    const fetchData = async () => {
+        if (!id) return
+
+        const { data: projectData } = await supabase.from('projects').select('*').eq('id', id).single()
+        if (projectData) {
+            setProject(projectData)
+            const { data: machinesData } = await supabase.from('machines').select('*').eq('project_id', id)
+            setMachines(machinesData || [])
+        }
+    }
+
     useEffect(() => {
         if (profile && id) {
-            const projects = storage.getProjects()
-            const current = projects.find(p => p.id === id)
-            if (current) {
-                setProject(current)
-                setMachines(storage.getMachines(id))
-            }
+            fetchData()
         }
 
         const handleOutsideClick = () => setActiveMenuId(null)
@@ -62,32 +68,34 @@ export default function ProjectDetail() {
     if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: 'white' }}>Yükleniyor...</div>
     if (!profile || !project) return null
 
-    const handleAddMachine = (e) => {
+    const handleAddMachine = async (e) => {
         e.preventDefault()
         if (!newMachine.name) return
 
-        if (editingMachine) {
-            storage.updateMachine({
-                ...editingMachine,
-                ...newMachine
-            })
-        } else {
-            storage.saveMachine({
-                ...newMachine,
-                projectId: id
-            })
+        const data = {
+            ...newMachine,
+            project_id: id
         }
 
-        setMachines(storage.getMachines(id))
+        if (editingMachine) {
+            const { error } = await supabase.from('machines').update(data).eq('id', editingMachine.id)
+            if (error) alert(error.message)
+        } else {
+            const { error } = await supabase.from('machines').insert([data])
+            if (error) alert(error.message)
+        }
+
+        fetchData()
         setNewMachine({ name: '', model: '', status: 'Üretimde' })
         setEditingMachine(null)
         setIsMachineModalOpen(false)
     }
 
-    const handleDeleteMachine = (mId) => {
+    const handleDeleteMachine = async (mId) => {
         if (confirm('Bu makineyi silmek istediğinize emin misiniz?')) {
-            storage.deleteMachine(mId)
-            setMachines(storage.getMachines(id))
+            const { error } = await supabase.from('machines').delete().eq('id', mId)
+            if (error) alert(error.message)
+            fetchData()
             setActiveMenuId(null)
         }
     }
@@ -113,9 +121,9 @@ export default function ProjectDetail() {
                         <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
                             <span className="status-badge status-active">{project.status}</span>
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
-                                <Calendar size={14} /> {project.estStart || '-'}
+                                <Calendar size={14} /> {project.est_start || '-'}
                                 <span style={{ margin: '0 0.5rem' }}>/</span>
-                                <Truck size={14} /> {project.estShipment || '-'}
+                                <Truck size={14} /> {project.est_shipment || '-'}
                             </div>
                         </div>
                     </div>

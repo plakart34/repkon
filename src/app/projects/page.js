@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import ProjectModal from '@/components/ProjectModal'
@@ -27,8 +27,9 @@ export default function ProjectsPage() {
     const [activeMenuId, setActiveMenuId] = useState(null)
     const [editingProject, setEditingProject] = useState(null)
 
-    const fetchData = () => {
-        setProjects(storage.getProjects())
+    const fetchData = async () => {
+        const { data } = await supabase.from('projects').select('*').order('created_at', { ascending: false })
+        setProjects(data || [])
     }
 
     useEffect(() => {
@@ -64,9 +65,10 @@ export default function ProjectsPage() {
         setActiveMenuId(null)
     }
 
-    const handleDeleteProject = (id) => {
+    const handleDeleteProject = async (id) => {
         if (confirm('Bu projeyi ve içindeki tüm verileri silmek istediğinize emin misiniz?')) {
-            storage.deleteProject(id)
+            const { error } = await supabase.from('projects').delete().eq('id', id)
+            if (error) alert(error.message)
             fetchData()
             setActiveMenuId(null)
         }
@@ -169,26 +171,26 @@ export default function ProjectsPage() {
                                 <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                                     <div style={{ marginBottom: '0.25rem', color: 'var(--primary)', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase' }}>Tahmini</div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                        <Calendar size={12} /> <span>{proj.estStart || '-'}</span>
+                                        <Calendar size={12} /> <span>{proj.est_start || '-'}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
-                                        <Truck size={12} /> <span>{proj.estShipment || '-'}</span>
+                                        <Truck size={12} /> <span>{proj.est_shipment || '-'}</span>
                                     </div>
                                 </div>
                                 <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                                     <div style={{ marginBottom: '0.25rem', color: '#4ade80', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase' }}>Fiili</div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                        <Calendar size={12} /> <span>{proj.actualStart || '-'}</span>
+                                        <Calendar size={12} /> <span>{proj.actual_start || '-'}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
-                                        <Calendar size={12} /> <span>{proj.actualEnd || '-'}</span>
+                                        <Calendar size={12} /> <span>{proj.actual_end || '-'}</span>
                                     </div>
                                 </div>
                             </div>
 
                             <div style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem', alignItems: 'center', marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.75rem' }}>
-                                <User size={14} style={{ color: 'var(--primary)' }} /> <span>{proj.responsibleEngineer || 'Atanmadı'}</span>
-                                <Globe size={14} style={{ color: 'var(--primary)' }} /> <span>{proj.countryOfOrigin || '-'}</span>
+                                <User size={14} style={{ color: 'var(--primary)' }} /> <span>{proj.responsible_engineer || 'Atanmadı'}</span>
+                                <Globe size={14} style={{ color: 'var(--primary)' }} /> <span>{proj.country_of_origin || '-'}</span>
                             </div>
 
                             <div style={{ marginTop: '1.5rem' }}>
@@ -212,7 +214,7 @@ export default function ProjectsPage() {
                     onProjectAdded={fetchData}
                     initialData={editingProject}
                     isAdmin={isAdmin}
-                    isMock={true}
+                    isMock={false}
                 />
             </main>
         </div>

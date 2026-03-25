@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -28,24 +28,35 @@ export default function Tasks() {
     const [viewType, setViewType] = useState('kanban') // 'kanban' veya 'calendar'
 
     useEffect(() => {
-        if (profile) {
-            const allOps = storage.getOperations().filter(op => op.status !== 'Tamamlandı' && op.status !== 'Durduruldu')
-            setOperations(allOps)
+        const fetchTasks = async () => {
+            if (profile) {
+                const { data, error } = await supabase.from('operations')
+                    .select('*')
 
-            const depts = [...new Set(allOps.map(op => op.responsibleDept).filter(Boolean))]
-            setDepartments(depts)
-            if (depts.length > 0) {
-                setActiveDept(depts[0])
+                if (error) {
+                    console.error('Task fetch error:', error)
+                    return
+                }
+
+                const filtered = (data || []).filter(op => op.status !== 'Tamamlandı' && op.status !== 'Durduruldu')
+                setOperations(filtered)
+
+                const depts = [...new Set(filtered.map(op => op.responsible_dept).filter(Boolean))]
+                setDepartments(depts)
+                if (depts.length > 0 && !activeDept) {
+                    setActiveDept(depts[0])
+                }
             }
         }
+        fetchTasks()
     }, [profile])
 
     const groupedData = useMemo(() => {
         if (!activeDept) return {}
 
-        const deptOps = operations.filter(op => op.responsibleDept === activeDept)
+        const deptOps = operations.filter(op => op.responsible_dept === activeDept)
         const grouped = deptOps.reduce((acc, op) => {
-            const person = op.responsiblePerson || 'Atanmamış'
+            const person = op.responsible_person || 'Atanmamış'
             if (!acc[person]) acc[person] = []
             acc[person].push(op)
             return acc
@@ -53,9 +64,9 @@ export default function Tasks() {
 
         Object.keys(grouped).forEach(person => {
             grouped[person].sort((a, b) => {
-                if (!a.targetDate) return 1
-                if (!b.targetDate) return -1
-                return new Date(a.targetDate) - new Date(b.targetDate)
+                if (!a.target_date) return 1
+                if (!b.target_date) return -1
+                return new Date(a.target_date) - new Date(b.target_date)
             })
         })
 
@@ -94,10 +105,10 @@ export default function Tasks() {
     // Takvim hücresi render fonksiyonu
     const renderCalendarCell = (ops, cellDate, isOverdue = false, isNoDate = false) => {
         const cellOps = ops.filter(op => {
-            if (isNoDate) return !op.targetDate
-            if (!op.targetDate) return false
+            if (isNoDate) return !op.target_date
+            if (!op.target_date) return false
 
-            const target = new Date(op.targetDate)
+            const target = new Date(op.target_date)
             target.setHours(0, 0, 0, 0)
 
             if (isOverdue) {
@@ -112,10 +123,10 @@ export default function Tasks() {
         return (
             <div style={{ padding: '0.5rem', minHeight: '120px', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: isOverdue ? 'rgba(239, 68, 68, 0.02)' : 'transparent' }}>
                 {cellOps.map(op => {
-                    const ds = getTargetDateStyle(op.targetDate)
+                    const ds = getTargetDateStyle(op.target_date)
                     return (
                         <div key={op.id} style={{ padding: '0.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderLeft: `3px solid ${op.status === 'İşlemde' ? '#3b82f6' : '#facc15'}`, borderRadius: '6px', fontSize: '0.75rem' }}>
-                            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.orderId}</div>
+                            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.order_id}</div>
                             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '0.2rem' }}>{op.process}</div>
                             <div style={{ color: ds.color, display: 'flex', alignItems: 'center', gap: '0.2rem', fontWeight: 600 }}>{ds.icon} {op.status}</div>
                         </div>
@@ -199,19 +210,19 @@ export default function Tasks() {
                                 </div>
                                 <div style={{ padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {ops.map(op => {
-                                        const dateStyle = getTargetDateStyle(op.targetDate)
+                                        const dateStyle = getTargetDateStyle(op.target_date)
                                         return (
                                             <div key={op.id} className="card" style={{ padding: '1rem', background: 'var(--card)', border: '1px solid var(--border)', borderLeft: `4px solid ${op.status === 'İşlemde' ? '#3b82f6' : '#facc15'}`, position: 'relative' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)' }}>{op.orderId}</span>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)' }}>{op.order_id}</span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: dateStyle.color, fontWeight: 700, background: `${dateStyle.color}15`, padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
                                                         {dateStyle.icon} {dateStyle.text}
                                                     </div>
                                                 </div>
                                                 <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', fontWeight: 600, color: 'var(--foreground)', lineHeight: 1.4 }}>{op.process}</p>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Folder size={12} /> <span style={{ color: 'white' }}>{op.projectName}</span></div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Activity size={12} /> <span>{op.machineName}</span></div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Folder size={12} /> <span style={{ color: 'white' }}>{op.project_name}</span></div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Activity size={12} /> <span>{op.machine_name}</span></div>
                                                 </div>
                                             </div>
                                         )

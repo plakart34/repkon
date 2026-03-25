@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -52,51 +52,101 @@ export default function RegisterStaff() {
         can_login: false
     })
 
+    const fetchData = async () => {
+        const { data: profData } = await supabase.from('profiles').select(`
+            *,
+            roles (name, permissions)
+        `)
+        const { data: roleData } = await supabase.from('roles').select('*')
+        const { data: deptData } = await supabase.from('depts').select('*')
+
+        setMembers(profData || [])
+        setRoles(roleData || [])
+        setDepartments((deptData || []).map(d => d.name))
+    }
+
     useEffect(() => {
         if (profile) {
-            setMembers(storage.getProfiles())
-            setRoles(storage.getRoles())
-            setDepartments(storage.getDepartments())
+            fetchData()
         }
     }, [profile])
 
     if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: 'white' }}>Yükleniyor...</div>
     if (!profile) return null
 
-    const handleRegister = (e) => {
+    const handleRegister = async (e) => {
         e.preventDefault()
-        storage.saveProfile({
-            ...formData,
-            department: selectedDept,
-            id: Date.now().toString()
-        })
-        setMembers(storage.getProfiles())
-        setIsStaffModalOpen(false)
-        setFormData({ ...formData, full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false })
+        try {
+            let authId = null;
+            if (formData.can_login) {
+                const { data: authUser, error: authErr } = await supabase.auth.signUp({
+                    email: formData.email,
+                    password: formData.password,
+                    options: {
+                        data: {
+                            full_name: formData.full_name
+                        }
+                    }
+                })
+                if (authErr) throw authErr;
+                authId = authUser.user.id;
+            }
+
+            const { error: profErr } = await supabase.from('profiles').insert({
+                id: authId || undefined, // Supabase allows null or let it be if not can_login? 
+                // Wait, if not can_login, I should still have a record.
+                full_name: formData.full_name,
+                email: formData.email,
+                phone: formData.phone,
+                extension: formData.extension,
+                business_phone: formData.business_phone,
+                task_description: formData.task_description,
+                role_id: formData.role_id || null,
+                department: selectedDept,
+                can_login: formData.can_login
+            })
+
+            if (profErr) throw profErr;
+
+            fetchData()
+            setIsStaffModalOpen(false)
+            setFormData({ ...formData, full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false })
+            alert('Personel kaydı başarıyla tamamlandı.')
+        } catch (err) {
+            alert('Kayıt Hatası: ' + err.message)
+        }
     }
 
-    const handleSaveDept = (e) => {
+    const handleSaveDept = async (e) => {
         e.preventDefault()
         if (!newDeptName) return
 
-        if (editingDept) {
-            storage.updateDepartment(editingDept, newDeptName)
-        } else {
-            storage.saveDepartment(newDeptName)
-        }
+        try {
+            if (editingDept) {
+                // Update dept name in depts table and all profiles in that dept
+                const { error: deptErr } = await supabase.from('depts').update({ name: newDeptName }).eq('name', editingDept)
+                if (deptErr) throw deptErr;
+                await supabase.from('profiles').update({ department: newDeptName }).eq('department', editingDept)
+            } else {
+                const { error: deptErr } = await supabase.from('depts').insert({ name: newDeptName })
+                if (deptErr) throw deptErr;
+            }
 
-        setDepartments(storage.getDepartments())
-        setMembers(storage.getProfiles())
-        setIsDeptModalOpen(false)
-        setEditingDept(null)
-        setNewDeptName('')
-        if (selectedDept === editingDept) setSelectedDept(newDeptName)
+            fetchData()
+            setIsDeptModalOpen(false)
+            setEditingDept(null)
+            setNewDeptName('')
+            if (selectedDept === editingDept) setSelectedDept(newDeptName)
+        } catch (err) {
+            alert('Bölüm Kayıt Hatası: ' + err.message)
+        }
     }
 
-    const handleDeleteDept = (deptName) => {
+    const handleDeleteDept = async (deptName) => {
         if (confirm(`${deptName} klasörünü silmek istediğinize emin misiniz?`)) {
-            storage.deleteDepartment(deptName)
-            setDepartments(storage.getDepartments())
+            const { error } = await supabase.from('depts').delete().eq('name', deptName)
+            if (error) alert(error.message)
+            fetchData()
         }
     }
 

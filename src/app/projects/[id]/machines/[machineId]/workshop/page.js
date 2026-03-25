@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -51,14 +51,13 @@ export default function MachineWorkshopPage() {
             e.stopPropagation();
         }
 
-        const menuWidth = 220; // Tahmini menü genişliği
-        const menuHeight = 280; // Tahmini menü yüksekliği
-        const padding = 10; // Ekran kenarından boşluk
+        const menuWidth = 220;
+        const menuHeight = 280;
+        const padding = 10;
 
         let x = e ? e.clientX : 0;
         let y = e ? e.clientY : 0;
 
-        // Ekran sınırlarını kontrol et (Sağ ve Alt)
         if (x + menuWidth > window.innerWidth) {
             x = window.innerWidth - menuWidth - padding;
         }
@@ -75,7 +74,7 @@ export default function MachineWorkshopPage() {
     const [members, setMembers] = useState([])
     const [dynamicDepts, setDynamicDepts] = useState([])
     const [activeOpMenuId, setActiveOpMenuId] = useState(null)
-    const [sortBy, setSortBy] = useState('orderId')
+    const [sortBy, setSortBy] = useState('order_id')
     const [sortOrder, setSortOrder] = useState('desc')
 
     const [operations, setOperations] = useState([])
@@ -100,32 +99,44 @@ export default function MachineWorkshopPage() {
         notes: ''
     })
 
+    const fetchData = async () => {
+        const { data: allProjects } = await supabase.from('projects').select('*')
+        setProjects(allProjects || [])
+
+        const p = allProjects?.find(pro => pro.id === params.id)
+        setProject(p)
+
+        if (allProjects) {
+            const { data: macs } = await supabase.from('machines').select('*').eq('project_id', params.id)
+            setMachines(macs || [])
+            const m = macs?.find(mac => mac.id === params.machineId)
+            setMachine(m)
+
+            if (m) {
+                setSelectedProjectId(params.id)
+                setSelectedMachineId(params.machineId)
+            }
+        }
+
+        const { data: allOps } = await supabase.from('operations').select('*').order('order_id', { ascending: false })
+        setOperations(allOps || [])
+
+        const { data: profiles } = await supabase.from('profiles').select('*')
+        setMembers(profiles || [])
+
+        const { data: depts } = await supabase.from('depts').select('*')
+        setDynamicDepts(depts?.map(d => d.name).filter(n => n !== 'Yönetim') || [])
+
+        // Fetch BOM items for the specific machine
+        if (params.machineId) {
+            const { data: bomData } = await supabase.from('bom_items').select('*').eq('machine_id', params.machineId)
+            setBomItems(bomData || [])
+        }
+    }
+
     useEffect(() => {
         if (profile) {
-            const allProjects = storage.getProjects()
-            setProjects(allProjects)
-
-            const p = allProjects.find(pro => pro.id === params.id)
-            setProject(p)
-
-            let m = null
-            if (p) {
-                const macs = storage.getMachines(p.id)
-                setMachines(macs)
-                m = macs.find(mac => mac.id === params.machineId)
-                setMachine(m)
-
-                if (m) {
-                    setSelectedProjectId(p.id)
-                    setSelectedMachineId(m.id)
-                }
-            }
-
-            const allOps = storage.getOperations().reverse()
-            setOperations(allOps)
-            setMembers(storage.getProfiles())
-            const depts = storage.getDepartments().filter(d => d !== 'Yönetim')
-            setDynamicDepts(depts)
+            fetchData()
         }
 
         const handleKeyDown = (e) => {
@@ -145,36 +156,42 @@ export default function MachineWorkshopPage() {
             window.removeEventListener('keydown', handleKeyDown)
             window.removeEventListener('click', handleOutsideClick)
         }
-    }, [profile])
+    }, [profile, params.id, params.machineId])
 
     useEffect(() => {
-        if (selectedProjectId) {
-            setMachines(storage.getMachines(selectedProjectId))
-            setSelectedMachineId('')
-            setBomItems([])
+        const fetchContextData = async () => {
+            if (selectedProjectId) {
+                const { data: macs } = await supabase.from('machines').select('*').eq('project_id', selectedProjectId)
+                setMachines(macs || [])
+                setSelectedMachineId('')
+                setBomItems([])
+            }
         }
+        fetchContextData()
     }, [selectedProjectId])
 
     useEffect(() => {
-        if (selectedMachineId) {
-            const ebom = storage.getBOM(selectedMachineId, 'ebom').map(i => ({ ...i, listType: 'eBOM' }))
-            const mbom = storage.getBOM(selectedMachineId, 'mbom').map(i => ({ ...i, listType: 'mBOM' }))
-            setBomItems([...ebom, ...mbom])
+        const fetchBomData = async () => {
+            if (selectedMachineId) {
+                const { data: bomData } = await supabase.from('bom_items').select('*').eq('machine_id', selectedMachineId)
+                setBomItems(bomData || [])
+            }
         }
+        fetchBomData()
     }, [selectedMachineId])
 
     // Filter Logic
     const filteredOperations = useMemo(() => {
         return operations.filter(op => {
             // Sadece bu proje ve makineye ait olanları göster
-            if (project && op.projectName !== project.name) return false;
-            if (machine && op.machineName !== machine.name) return false;
+            if (project && op.project_name !== project.name) return false;
+            if (machine && op.machine_name !== machine.name) return false;
 
-            const matchSorumlu = !filterSorumlu || op.responsiblePerson === filterSorumlu
+            const matchSorumlu = !filterSorumlu || op.responsible_person === filterSorumlu
             const matchStatu = !filterStatu || op.status === filterStatu
 
             // Global search
-            const searchStr = `${op.orderId} ${op.projectName} ${op.machineName} ${op.machineModel} ${op.responsiblePerson} ${op.responsibleDept} ${op.process} ${op.bomCode} ${op.bomName}`.toLowerCase()
+            const searchStr = `${op.order_id} ${op.project_name} ${op.machine_name} ${op.machine_model} ${op.responsible_person} ${op.responsible_dept} ${op.process} ${op.bom_code} ${op.bom_name}`.toLowerCase()
             const matchSearch = !searchTerm || searchStr.includes(searchTerm.toLowerCase())
 
             return matchSorumlu && matchStatu && matchSearch
@@ -184,40 +201,41 @@ export default function MachineWorkshopPage() {
     if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: 'white' }}>Yükleniyor...</div>
     if (!profile) return null
 
-    const handleSaveLog = (e) => {
+    const handleSaveLog = async (e) => {
         e.preventDefault()
-        // Bom is now optional
 
         const bomItem = bomItems.find(b => b.id === selectedBomId)
         const respPerson = members.find(m => m.id === logData.responsiblePersonId)
-        const machine = machines.find(m => m.id === selectedMachineId)
+        const currentMachine = machines.find(m => m.id === selectedMachineId)
 
         const opData = {
-            projectName: projects.find(p => p.id === selectedProjectId)?.name,
-            machineName: machine?.name,
-            machineModel: machine?.model,
-            bomName: bomItem?.name || (selectedOp ? selectedOp.bomName : ''),
-            bomCode: bomItem?.code || (selectedOp ? selectedOp.bomCode : ''),
-            listType: bomItem?.listType || (selectedOp ? selectedOp.listType : ''),
+            project_name: projects.find(p => p.id === selectedProjectId)?.name,
+            machine_name: currentMachine?.name,
+            machine_model: currentMachine?.model,
+            bom_name: bomItem?.name || (selectedOp ? selectedOp.bom_name : ''),
+            bom_code: bomItem?.code || (selectedOp ? selectedOp.bom_code : ''),
+            list_type: bomItem?.list_type || (selectedOp ? selectedOp.list_type : ''),
             process: logData.process,
-            targetDate: logData.targetDate,
-            responsibleDept: logData.responsibleDept,
-            responsiblePerson: respPerson?.full_name || (selectedOp ? selectedOp.responsiblePerson : ''),
+            target_date: logData.targetDate,
+            responsible_dept: logData.responsibleDept,
+            responsible_person: respPerson?.full_name || (selectedOp ? selectedOp.responsible_person : ''),
             notes: logData.notes,
-            userName: profile.full_name
+            user_name: profile.full_name
         }
 
         if (selectedOp) {
-            storage.updateOperation({ ...selectedOp, ...opData })
+            const { error } = await supabase.from('operations').update(opData).eq('id', selectedOp.id)
+            if (error) alert(error.message)
         } else {
-            storage.saveOperation(opData)
+            const { error } = await supabase.from('operations').insert([opData])
+            if (error) alert(error.message)
         }
 
-        setOperations(storage.getOperations().reverse())
+        fetchData()
         setIsLogModalOpen(false)
         setSelectedOp(null)
         setLogData({ process: '', targetDate: '', responsibleDept: '', responsiblePersonId: '', notes: '' })
-        setActiveOpMenuId(null) // Close menu after saving/updating
+        setActiveOpMenuId(null)
     }
 
     const getSortedOperations = () => {
@@ -225,7 +243,7 @@ export default function MachineWorkshopPage() {
             let valA = a[sortBy] || '';
             let valB = b[sortBy] || '';
 
-            if (sortBy === 'targetDate') {
+            if (sortBy === 'target_date') {
                 valA = valA ? new Date(valA).getTime() : 0;
                 valB = valB ? new Date(valB).getTime() : 0;
             }
@@ -263,20 +281,35 @@ export default function MachineWorkshopPage() {
         return { color: 'white', className: '' };
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (window.confirm('Bu aksiyonu silmek istediğinize emin misiniz?')) {
-            storage.deleteOperation(id)
-            setOperations(storage.getOperations().reverse())
+            const { error } = await supabase.from('operations').delete().eq('id', id)
+            if (error) alert(error.message)
+            fetchData()
         }
     }
 
-    const handleStatusChange = (e) => {
+    const handleStatusChange = async (e) => {
         e.preventDefault()
-        const updatedOp = storage.updateOperationStatus(selectedOp.id, statusUpdate.status, statusUpdate.note, profile.full_name)
-        setOperations(storage.getOperations().reverse())
+        const historyEntry = {
+            status: statusUpdate.status,
+            note: statusUpdate.note,
+            timestamp: new Date().toISOString(),
+            user: profile.full_name
+        }
+        const newHistory = [...(selectedOp.history || []), historyEntry]
+
+        const { error } = await supabase.from('operations').update({
+            status: statusUpdate.status,
+            history: newHistory
+        }).eq('id', selectedOp.id)
+
+        if (error) alert(error.message)
+
+        fetchData()
         setIsStatusModalOpen(false)
         setStatusUpdate({ status: '', note: '' })
-        setActiveOpMenuId(null) // Close menu after status change
+        setActiveOpMenuId(null)
     }
 
     const getStatusColor = (status) => {
@@ -405,7 +438,7 @@ export default function MachineWorkshopPage() {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', alignItems: 'end' }}>
                         {[
-                            { label: 'Sorumlu', value: filterSorumlu, setter: setFilterSorumlu, options: Array.from(new Set(operations.map(o => o.responsiblePerson))), placeholder: 'Tüm Personeller' },
+                            { label: 'Sorumlu', value: filterSorumlu, setter: setFilterSorumlu, options: Array.from(new Set(operations.map(o => o.responsible_person))), placeholder: 'Tüm Personeller' },
                             {
                                 label: 'Statü', value: filterStatu, setter: setFilterStatu,
                                 options: ['Bekliyor', 'İşlemde', 'Tamamlandı', 'Durduruldu'],
@@ -494,12 +527,12 @@ export default function MachineWorkshopPage() {
                                 <thead>
                                     <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                                         {[
-                                            { label: 'No / Statü', key: 'orderId', width: '100px' },
-                                            { label: 'BOM / Parça', key: 'bomCode' },
+                                            { label: 'No / Statü', key: 'order_id', width: '100px' },
+                                            { label: 'BOM / Parça', key: 'bom_code' },
                                             { label: 'Yapılan İşlem', key: 'process' },
-                                            { label: 'Sorumlu Bölüm', key: 'responsibleDept' },
-                                            { label: 'Sorumlu Kişi', key: 'responsiblePerson' },
-                                            { label: 'Hedef Tarih', key: 'targetDate' }
+                                            { label: 'Sorumlu Bölüm', key: 'responsible_dept' },
+                                            { label: 'Sorumlu Kişi', key: 'responsible_person' },
+                                            { label: 'Hedef Tarih', key: 'target_date' }
                                         ].map(col => (
                                             <th
                                                 key={col.key}
@@ -535,27 +568,27 @@ export default function MachineWorkshopPage() {
                                             className="nav-item-mini"
                                         >
                                             <td style={{ padding: '0.75rem' }}>
-                                                <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.orderId}</div>
+                                                <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.order_id}</div>
                                                 <span className="status-badge" style={{ background: getStatusColor(op.status).bg, color: getStatusColor(op.status).text, fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>{op.status}</span>
                                             </td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
-                                                <div style={{ fontWeight: 500 }}>{op.bomCode || '-'}</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.bomName}</div>
+                                                <div style={{ fontWeight: 500 }}>{op.bom_code || '-'}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.bom_name}</div>
                                             </td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
                                                 <div style={{ color: 'var(--foreground)' }}>{op.process}</div>
                                             </td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsibleDept}</td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsiblePerson}</td>
+                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsible_dept}</td>
+                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsible_person}</td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
                                                 <div
-                                                    className={getTargetDateStyle(op.targetDate, op.status).className}
+                                                    className={getTargetDateStyle(op.target_date, op.status).className}
                                                     style={{
-                                                        color: getTargetDateStyle(op.targetDate, op.status).color,
-                                                        fontWeight: getTargetDateStyle(op.targetDate, op.status).fontWeight || 400
+                                                        color: getTargetDateStyle(op.target_date, op.status).color,
+                                                        fontWeight: getTargetDateStyle(op.target_date, op.status).fontWeight || 400
                                                     }}
                                                 >
-                                                    {op.targetDate ? new Date(op.targetDate).toLocaleDateString('tr-TR') : '-'}
+                                                    {op.target_date ? new Date(op.target_date).toLocaleDateString('tr-TR') : '-'}
                                                 </div>
                                             </td>
                                             <td style={{ padding: '0.75rem', textAlign: 'right' }}>
@@ -676,7 +709,7 @@ export default function MachineWorkshopPage() {
             {isStatusModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
                     <div className="card animate-fade-in" style={{ width: '450px', padding: '2.5rem', background: 'var(--card)' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{selectedOp?.orderId} / Statü Güncelle</h3>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{selectedOp?.order_id} / Statü Güncelle</h3>
                         <form onSubmit={handleStatusChange}>
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yeni Statü</label>
@@ -710,7 +743,7 @@ export default function MachineWorkshopPage() {
                     <div className="card animate-fade-in" style={{ width: '600px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '90vh', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem', alignItems: 'center' }}>
                             <div>
-                                <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{selectedOp?.orderId} / Süreç Takibi</h3>
+                                <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{selectedOp?.order_id} / Süreç Takibi</h3>
                                 <p style={{ color: 'var(--muted-foreground)', margin: 0 }}>{selectedOp?.process}</p>
                             </div>
                             <button onClick={() => setIsTimelineModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
@@ -768,8 +801,8 @@ export default function MachineWorkshopPage() {
                         return (
                             <>
                                 <div style={{ padding: '0.6rem 0.6rem 0.4rem 0.6rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '0.4rem' }}>
-                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.1rem' }}>{op.orderId}</div>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.projectName}</div>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.1rem' }}>{op.order_id}</div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.project_name}</div>
                                 </div>
                                 <button
                                     onClick={() => { setSelectedOp(op); setStatusUpdate({ status: op.status, note: '' }); setIsStatusModalOpen(true); setActiveOpMenuId(null); }}
@@ -782,17 +815,17 @@ export default function MachineWorkshopPage() {
                                     onClick={() => {
                                         setSelectedOp(op);
                                         setActiveOpMenuId(null);
-                                        const proj = projects.find(p => p.name === op.projectName);
+                                        const proj = projects.find(p => p.name === op.project_name);
                                         if (proj) {
                                             setSelectedProjectId(proj.id);
-                                            const mach = storage.getMachines(proj.id).find(m => m.name === op.machineName);
+                                            const mach = machines.find(m => m.name === op.machine_name);
                                             if (mach) {
                                                 setSelectedMachineId(mach.id);
                                                 setTimeout(() => {
-                                                    const bom = storage.getBOM(mach.id, op.listType.toLowerCase()).find(b => b.code === op.bomCode);
+                                                    const bom = bomItems.find(b => b.code === op.bom_code);
                                                     if (bom) setSelectedBomId(bom.id);
-                                                    const resp = members.find(m => m.full_name === op.responsiblePerson);
-                                                    setLogData({ process: op.process, targetDate: op.targetDate, responsibleDept: op.responsibleDept, responsiblePersonId: resp ? resp.id : '', notes: op.notes });
+                                                    const resp = members.find(m => m.full_name === op.responsible_person);
+                                                    setLogData({ process: op.process, targetDate: op.target_date, responsibleDept: op.responsible_dept, responsiblePersonId: resp ? resp.id : '', notes: op.notes });
                                                     setIsLogModalOpen(true);
                                                 }, 100);
                                             }

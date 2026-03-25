@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { storage } from '@/lib/storage'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -27,8 +27,6 @@ import {
     Shield,
     CheckCircle2
 } from 'lucide-react'
-
-import { Suspense } from 'react'
 
 function TeamContent() {
     const { profile, loading: authLoading } = usePermissions()
@@ -61,12 +59,19 @@ function TeamContent() {
     const searchParams = useSearchParams()
     const deptFromQuery = searchParams.get('dept')
 
+    const fetchData = async () => {
+        const { data: profilesData } = await supabase.from('profiles').select('*')
+        const { data: rolesData } = await supabase.from('roles').select('*')
+        const { data: deptsData } = await supabase.from('depts').select('*')
+
+        setMembers(profilesData || [])
+        setRoles(rolesData || [])
+        setDepartments(deptsData || [])
+    }
+
     useEffect(() => {
         if (profile) {
-            setMembers(storage.getProfiles())
-            setRoles(storage.getRoles())
-            setDepartments(storage.getDepartments())
-
+            fetchData()
             if (deptFromQuery) {
                 setSelectedDept(decodeURIComponent(deptFromQuery))
             }
@@ -76,14 +81,23 @@ function TeamContent() {
     if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: 'white' }}>Yükleniyor...</div>
     if (!profile) return null
 
-    const handleRegister = (e) => {
+    const handleRegister = async (e) => {
         e.preventDefault()
-        storage.saveProfile({
+        const data = {
             ...formData,
-            id: editingStaff ? editingStaff.id : Date.now().toString(),
-            department: selectedDept
-        })
-        setMembers(storage.getProfiles())
+            department: selectedDept,
+            role_id: formData.role_id === '' ? null : formData.role_id
+        }
+
+        if (editingStaff) {
+            const { error } = await supabase.from('profiles').update(data).eq('id', editingStaff.id)
+            if (error) alert(error.message)
+        } else {
+            const { error } = await supabase.from('profiles').insert([data])
+            if (error) alert(error.message)
+        }
+
+        fetchData()
         setIsStaffModalOpen(false)
         setEditingStaff(null)
         setFormData({ full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false })
@@ -99,45 +113,51 @@ function TeamContent() {
         setIsStaffModalOpen(true)
     }
 
-    const handleDeleteStaff = (id) => {
+    const handleDeleteStaff = async (id) => {
         if (confirm('Bu personeli silmek istediğinize emin misiniz?')) {
-            storage.deleteProfile(id)
-            setMembers(storage.getProfiles())
+            const { error } = await supabase.from('profiles').delete().eq('id', id)
+            if (error) alert(error.message)
+            fetchData()
         }
     }
 
-    const toggleStaffStatus = (staff) => {
-        const updated = { ...staff, can_login: !staff.can_login }
-        storage.saveProfile(updated)
-        setMembers(storage.getProfiles())
+    const toggleStaffStatus = async (staff) => {
+        const { error } = await supabase.from('profiles').update({ can_login: !staff.can_login }).eq('id', staff.id)
+        if (error) alert(error.message)
+        fetchData()
     }
 
-    const handleSaveDept = (e) => {
+    const handleSaveDept = async (e) => {
         e.preventDefault()
         if (!newDeptName) return
 
         if (editingDept) {
-            storage.updateDepartment(editingDept, newDeptName)
+            // Update department name in depts table and all profiles
+            const { error: deptError } = await supabase.from('depts').update({ name: newDeptName }).eq('name', editingDept.name)
+            if (deptError) alert(deptError.message)
+            // Note: In a real app, you'd use a foreign key on dept ID, but here we use names.
+            await supabase.from('profiles').update({ department: newDeptName }).eq('department', editingDept.name)
         } else {
-            storage.saveDepartment(newDeptName)
+            const { error } = await supabase.from('depts').insert([{ name: newDeptName }])
+            if (error) alert(error.message)
         }
 
-        setDepartments(storage.getDepartments())
-        setMembers(storage.getProfiles())
+        fetchData()
         setIsDeptModalOpen(false)
         setEditingDept(null)
         setNewDeptName('')
-        if (selectedDept === editingDept) setSelectedDept(newDeptName)
+        if (selectedDept === editingDept?.name) setSelectedDept(newDeptName)
     }
 
-    const handleDeleteDept = (deptName) => {
-        if (confirm(`${deptName} klasörünü silmek istediğinize emin misiniz?`)) {
-            storage.deleteDepartment(deptName)
-            setDepartments(storage.getDepartments())
+    const handleDeleteDept = async (dept) => {
+        if (confirm(`${dept.name} klasörünü silmek istediğinize emin misiniz?`)) {
+            const { error } = await supabase.from('depts').delete().eq('id', dept.id)
+            if (error) alert(error.message)
+            fetchData()
         }
     }
 
-    const getDeptMembers = (dept) => members.filter(m => m.department === dept)
+    const getDeptMembers = (deptName) => members.filter(m => m.department === deptName)
 
     const getRoleName = (roleId) => {
         return roles.find(r => r.id === roleId)?.name || 'Üye'
@@ -196,17 +216,17 @@ function TeamContent() {
                         ) : (
                             departments.map(dept => (
                                 <div
-                                    key={dept}
+                                    key={dept.id}
                                     className="card folder-card"
                                     style={{ cursor: 'pointer', textAlign: 'center', padding: '2.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.3s', position: 'relative' }}
-                                    onClick={() => setSelectedDept(dept)}
+                                    onClick={() => setSelectedDept(dept.name)}
                                 >
                                     <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation()
                                                 setEditingDept(dept)
-                                                setNewDeptName(dept)
+                                                setNewDeptName(dept.name)
                                                 setIsDeptModalOpen(true)
                                             }}
                                             style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', padding: '0.5rem' }}
@@ -227,8 +247,8 @@ function TeamContent() {
                                     <div style={{ color: '#3b82f6', marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
                                         <Folder size={64} fill="rgba(59, 130, 246, 0.1)" />
                                     </div>
-                                    <h4 style={{ fontSize: '1.15rem', fontWeight: 700 }}>{dept}</h4>
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>{getDeptMembers(dept).length} Personel</p>
+                                    <h4 style={{ fontSize: '1.15rem', fontWeight: 700 }}>{dept.name}</h4>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>{getDeptMembers(dept.name).length} Personel</p>
                                 </div>
                             ))
                         )}
@@ -244,7 +264,8 @@ function TeamContent() {
                                     className="btn"
                                     style={{ background: 'var(--secondary)', color: 'white' }}
                                     onClick={() => {
-                                        setEditingDept(selectedDept)
+                                        const d = departments.find(d => d.name === selectedDept)
+                                        setEditingDept(d)
                                         setNewDeptName(selectedDept)
                                         setIsDeptModalOpen(true)
                                     }}

@@ -18,24 +18,32 @@ import {
     History
 } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 
 export default function Sidebar({ profile }) {
     const pathname = usePathname()
     const router = useRouter()
     const [isProjectsExpanded, setIsProjectsExpanded] = useState(pathname.startsWith('/projects'))
-    const [isTeamExpanded, setIsTeamExpanded] = useState(pathname.startsWith('/team'))
+    const [isTeamExpanded, setIsTeamExpanded] = useState(pathname.startsWith('/team') || pathname === '/register-staff')
     const [projects, setProjects] = useState([])
     const [departments, setDepartments] = useState([])
     const [theme, setTheme] = useState('dark')
 
+    const fetchData = async () => {
+        const { data: projData } = await supabase.from('projects').select('*').order('name')
+        const { data: deptData } = await supabase.from('depts').select('name').order('name')
+        setProjects(projData || [])
+        setDepartments(deptData?.map(d => d.name) || [])
+    }
+
     useEffect(() => {
-        setProjects(storage.getProjects())
-        setDepartments(storage.getDepartments())
+        if (profile) {
+            fetchData()
+        }
         const savedTheme = localStorage.getItem('rmk_theme') || 'dark'
         setTheme(savedTheme)
         document.documentElement.setAttribute('data-theme', savedTheme)
-    }, [pathname])
+    }, [pathname, profile])
 
     const toggleTheme = (newTheme) => {
         setTheme(newTheme)
@@ -44,7 +52,7 @@ export default function Sidebar({ profile }) {
     }
 
     const handleLogout = async () => {
-        storage.logout()
+        await supabase.auth.signOut()
         window.location.href = '/login'
     }
 
@@ -92,7 +100,9 @@ export default function Sidebar({ profile }) {
                     if (!item.adminOnly && item.path !== '/' && !canSee(item.path)) return null
 
                     const Icon = item.icon
-                    const isActive = pathname === item.path || (item.path !== '/' && pathname.startsWith(item.path))
+                    const isActive = pathname === item.path ||
+                        (item.path !== '/' && pathname.startsWith(item.path)) ||
+                        (item.submenuType === 'team' && pathname === '/register-staff')
 
                     if (item.hasSubmenu) {
                         const isExpanded = item.submenuType === 'team' ? isTeamExpanded : isProjectsExpanded
@@ -126,8 +136,29 @@ export default function Sidebar({ profile }) {
                                                 textDecoration: 'none'
                                             }}
                                         >
-                                            {item.submenuType === 'team' ? 'Departmanlar' : 'Tüm Projeler'}
+                                            {item.submenuType === 'team' ? 'Departman / Tüm Ekip' : 'Tüm Projeler'}
                                         </a>
+
+                                        {item.submenuType === 'team' && isAdmin && (
+                                            <a
+                                                href="/register-staff"
+                                                style={{
+                                                    fontSize: '0.85rem',
+                                                    padding: '0.5rem 0.75rem',
+                                                    color: pathname === '/register-staff' ? 'white' : 'var(--muted-foreground)',
+                                                    fontWeight: pathname === '/register-staff' ? 600 : 400,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.5rem',
+                                                    textDecoration: 'none',
+                                                    background: pathname === '/register-staff' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                                                    borderRadius: 'var(--radius)'
+                                                }}
+                                            >
+                                                <UserPlus size={14} style={{ color: '#4ade80' }} /> <span>Personel Ekle / Yön.</span>
+                                            </a>
+                                        )}
+
                                         {item.submenuType === 'team' ? (
                                             departments.map(dept => (
                                                 <div

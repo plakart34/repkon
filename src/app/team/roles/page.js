@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -25,23 +25,64 @@ export default function RolesPage() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [modalData, setModalData] = useState({ id: null, name: '', description: '', permissions: [] })
 
-    const allAvailablePermissions = [
-        { path: 'view_dashboard', name: 'Dashboard Görüntüleme' },
-        { path: 'view_projects', name: 'Projeleri Görüntüleme' },
-        { path: 'create_project', name: 'Yeni Proje Oluşturma' },
-        { path: 'edit_project', name: 'Proje Düzenleme/Silme' },
-        { path: 'view_workshop', name: 'Çalıştay Görüntüleme' },
-        { path: 'manage_workshop', name: 'Çalıştay İşlemleri (Aksiyon vb.)' },
-        { path: 'update_status', name: 'Statü Güncelleme Yetkisi' },
-        { path: 'view_tasks', name: 'İş Takibi Görüntüleme' },
-        { path: 'view_team', name: 'Rol ve Ekip Görüntüleme' },
-        { path: 'manage_team', name: 'Personel Düzenleme Yetkisi' },
-        { path: 'view_logs', name: 'Sistem Logları Görüntüleme' }
+    const permissionGroups = [
+        {
+            groupName: 'Genel & Dashboard',
+            permissions: [
+                { path: 'view_dashboard', name: 'Dashboard Görüntüleme' },
+                { path: 'view_logs', name: 'Sistem Logları Görüntüleme' }
+            ]
+        },
+        {
+            groupName: 'Proje & Ana Modüller',
+            permissions: [
+                { path: 'view_projects', name: 'Projeleri Görüntüleme' },
+                { path: 'create_project', name: 'Projeleri Oluşturma & Ekleme' },
+                { path: 'edit_project', name: 'Projeleri Düzenleme' },
+                { path: 'delete_project', name: 'Projeleri Silme' }
+            ]
+        },
+        {
+            groupName: 'Makine & BOM Yönetimi',
+            permissions: [
+                { path: 'view_machine', name: 'Makineleri Görüntüleme' },
+                { path: 'create_machine', name: 'Makine Oluşturma & Ekleme' },
+                { path: 'edit_machine', name: 'Makine Düzenleme' },
+                { path: 'delete_machine', name: 'Makine Silme' },
+                { path: 'manage_bom', name: 'eBOM / mBOM Listesi Düzenleme' },
+                { path: 'manage_folders', name: 'Özel Klasör Oluşturma' }
+            ]
+        },
+        {
+            groupName: 'Çalıştay & Operasyonlar',
+            permissions: [
+                { path: 'view_workshop', name: 'Çalıştay İşlemlerini Görüntüleme' },
+                { path: 'view_tasks', name: 'İş Takibi (Kanban & Takvim) Görüntüleme' },
+                { path: 'create_operation', name: 'Yeni Aksiyon/Süreç Başlatma' },
+                { path: 'edit_operation', name: 'Aksiyon & İş Düzenleme' },
+                { path: 'delete_operation', name: 'Aksiyon & İş Silme' },
+                { path: 'update_status', name: 'İş Statüsü (Modu) Güncelleme' }
+            ]
+        },
+        {
+            groupName: 'Ekip Yönetimi & Rol Atama',
+            permissions: [
+                { path: 'view_team', name: 'Ekip Görüntüleme' },
+                { path: 'manage_team', name: 'Personel Özelliklerini Düzenleme' },
+                { path: 'create_staff', name: 'Yeni Personel (Görevli) Ekleme' },
+                { path: 'manage_roles', name: 'Rol ve Sayfa Yetkisi Düzenleme' }
+            ]
+        }
     ]
+
+    const fetchData = async () => {
+        const { data } = await supabase.from('roles').select('*')
+        setRoles(data || [])
+    }
 
     useEffect(() => {
         if (profile) {
-            setRoles(storage.getRoles())
+            fetchData()
         }
 
         const handleKeyDown = (e) => {
@@ -57,21 +98,37 @@ export default function RolesPage() {
     if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: 'white' }}>Yükleniyor...</div>
     if (!profile) return null
 
-    const handleSaveRole = (e) => {
+    const handleSaveRole = async (e) => {
         e.preventDefault()
         if (profile.roles?.name !== 'Admin') return
 
-        const updatedRole = storage.saveRole(modalData)
-        setRoles(storage.getRoles())
+        if (modalData.id) {
+            const { error } = await supabase.from('roles').update({
+                name: modalData.name,
+                description: modalData.description,
+                permissions: modalData.permissions
+            }).eq('id', modalData.id)
+            if (error) alert(error.message)
+        } else {
+            const { error } = await supabase.from('roles').insert([{
+                name: modalData.name,
+                description: modalData.description,
+                permissions: modalData.permissions
+            }])
+            if (error) alert(error.message)
+        }
+
+        fetchData()
         setIsModalOpen(false)
         setModalData({ id: null, name: '', description: '', permissions: [] })
     }
 
-    const handleDeleteRole = (id) => {
+    const handleDeleteRole = async (id) => {
         if (profile.roles?.name !== 'Admin') return
         if (window.confirm('Bu rolü silmek istediğinize emin misiniz?')) {
-            storage.deleteRole(id)
-            setRoles(storage.getRoles())
+            const { error } = await supabase.from('roles').delete().eq('id', id)
+            if (error) alert(error.message)
+            fetchData()
         }
     }
 
@@ -85,20 +142,22 @@ export default function RolesPage() {
         setIsModalOpen(true)
     }
 
-    const handleTogglePermission = (roleId, path) => {
+    const handleTogglePermission = async (roleId, path) => {
         if (profile.roles?.name !== 'Admin') return
 
-        const updatedRoles = [...roles]
-        const role = updatedRoles.find(r => r.id === roleId)
+        const role = roles.find(r => r.id === roleId)
         if (role) {
             const currentPerms = role.permissions || []
+            let newPerms
             if (currentPerms.includes(path)) {
-                role.permissions = currentPerms.filter(p => p !== path)
+                newPerms = currentPerms.filter(p => p !== path)
             } else {
-                role.permissions = [...currentPerms, path]
+                newPerms = [...currentPerms, path]
             }
-            setRoles(updatedRoles)
-            storage.saveRole(role)
+
+            const { error } = await supabase.from('roles').update({ permissions: newPerms }).eq('id', roleId)
+            if (error) alert(error.message)
+            fetchData()
         }
     }
 
@@ -149,7 +208,7 @@ export default function RolesPage() {
                                             <button
                                                 onClick={() => openEditModal(role)}
                                                 className="btn btn-secondary"
-                                                style={{ padding: '0.4rem', border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}
+                                                style={{ padding: '0.4rem', border: '1px solid var(--border)', background: 'var(--secondary)' }}
                                             >
                                                 <Edit3 size={14} />
                                             </button>
@@ -164,50 +223,60 @@ export default function RolesPage() {
                                     )}
                                 </div>
 
-                                <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div style={{ padding: '1.5rem', background: 'var(--secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted-foreground)', marginBottom: '1rem', letterSpacing: '0.05em' }}>
                                         İzin Verilen Sayfalar
                                     </div>
 
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                        {allAvailablePermissions.map(item => {
-                                            const isAllowed = role.permissions.includes(item.path) || role.name === 'Admin'
-                                            const isDashboard = item.path === '/'
-
-                                            return (
-                                                <div
-                                                    key={item.path}
-                                                    style={{
-                                                        display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center',
-                                                        padding: '0.75rem',
-                                                        borderRadius: 'var(--radius)',
-                                                        background: isAllowed ? 'rgba(59, 130, 246, 0.05)' : 'rgba(255,255,255,0.02)',
-                                                        cursor: (profile.roles?.name === 'Admin' && role.name !== 'Admin') ? 'pointer' : 'default',
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                    onClick={() => {
-                                                        if (role.name === 'Admin') return // Cannot change Admin
-                                                        handleTogglePermission(role.id, item.path)
-                                                    }}
-                                                >
-                                                    <span style={{ fontSize: '0.875rem', color: isAllowed ? 'white' : 'var(--muted-foreground)', fontWeight: isAllowed ? 600 : 400 }}>{item.name}</span>
-                                                    <div style={{ width: '32px', height: '16px', borderRadius: '10px', background: isAllowed ? 'var(--primary)' : 'var(--secondary)', position: 'relative', transition: '0.3s' }}>
-                                                        <div style={{
-                                                            width: '12px',
-                                                            height: '12px',
-                                                            borderRadius: '50%',
-                                                            background: 'white',
-                                                            position: 'absolute',
-                                                            top: '2px',
-                                                            left: isAllowed ? '18px' : '2px',
-                                                            transition: '0.3s'
-                                                        }} />
-                                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                        {permissionGroups.map((group, gIdx) => (
+                                            <div key={gIdx}>
+                                                <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>
+                                                    {group.groupName}
                                                 </div>
-                                            )
-                                        })}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                    {group.permissions.map(item => {
+                                                        const isAllowed = role.permissions.includes(item.path) || role.name === 'Admin'
+
+                                                        return (
+                                                            <div
+                                                                key={item.path}
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    justifyContent: 'space-between',
+                                                                    alignItems: 'center',
+                                                                    padding: '0.6rem 0.75rem',
+                                                                    borderRadius: 'var(--radius)',
+                                                                    background: isAllowed ? 'rgba(59, 130, 246, 0.05)' : 'var(--card)',
+                                                                    cursor: (profile.roles?.name === 'Admin' && role.name !== 'Admin') ? 'pointer' : 'default',
+                                                                    transition: 'all 0.2s',
+                                                                    border: '1px solid',
+                                                                    borderColor: isAllowed ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
+                                                                }}
+                                                                onClick={() => {
+                                                                    if (role.name === 'Admin') return // Cannot change Admin
+                                                                    handleTogglePermission(role.id, item.path)
+                                                                }}
+                                                            >
+                                                                <span style={{ fontSize: '0.8rem', color: isAllowed ? 'var(--foreground)' : 'var(--muted-foreground)', fontWeight: isAllowed ? 600 : 400 }}>{item.name}</span>
+                                                                <div style={{ width: '28px', height: '14px', borderRadius: '10px', background: isAllowed ? 'var(--primary)' : 'var(--secondary)', position: 'relative', transition: '0.3s' }}>
+                                                                    <div style={{
+                                                                        width: '10px',
+                                                                        height: '10px',
+                                                                        borderRadius: '50%',
+                                                                        background: 'white',
+                                                                        position: 'absolute',
+                                                                        top: '2px',
+                                                                        left: isAllowed ? '16px' : '2px',
+                                                                        transition: '0.3s'
+                                                                    }} />
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -235,7 +304,7 @@ export default function RolesPage() {
                                     <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Rol Adı</label>
                                     <input
                                         required
-                                        style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
+                                        style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
                                         value={modalData.name}
                                         onChange={e => setModalData({ ...modalData, name: e.target.value })}
                                         placeholder="Örn: Operatör"
@@ -244,7 +313,7 @@ export default function RolesPage() {
                                 <div style={{ marginBottom: '2.5rem' }}>
                                     <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Açıklama</label>
                                     <textarea
-                                        style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', minHeight: '80px' }}
+                                        style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', minHeight: '80px' }}
                                         value={modalData.description}
                                         onChange={e => setModalData({ ...modalData, description: e.target.value })}
                                         placeholder="Rolün görev tanımı..."
@@ -252,7 +321,7 @@ export default function RolesPage() {
                                 </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <button type="button" onClick={() => setIsModalOpen(false)} className="btn" style={{ background: 'var(--secondary)', color: 'white' }}>İptal</button>
+                                    <button type="button" onClick={() => setIsModalOpen(false)} className="btn" style={{ background: 'var(--secondary)', color: 'var(--foreground)' }}>İptal</button>
                                     <button type="submit" className="btn btn-primary">
                                         {modalData.id ? 'Değişiklikleri Kaydet' : 'Rolu Oluştur'}
                                     </button>

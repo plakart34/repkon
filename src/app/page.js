@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import ProjectModal from '@/components/ProjectModal'
 import Sidebar from '@/components/Sidebar'
@@ -31,37 +31,32 @@ export default function Home() {
   const [isNotifOpen, setIsNotifOpen] = useState(false)
   const notifRef = useRef(null)
 
-  const fetchData = () => {
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const data = storage.getProjects()
-      setProjects(data || [])
 
-      // Fetch logs for notifications
-      const allOps = storage.getOperations()
-      const extractedLogs = []
-      allOps.forEach(op => {
-        if (op.history && Array.isArray(op.history)) {
-          op.history.forEach((h, index) => {
-            extractedLogs.push({
-              id: `${op.id}-${index}`,
-              opId: op.id,
-              process: op.process,
-              status: h.status,
-              note: h.note,
-              timestamp: new Date(h.timestamp),
-              user: h.user || 'Bilinmiyor'
-            })
-          })
-        }
-      })
+      // 1. Fetch Projects from Supabase
+      const { data: projData, error: projError } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-      extractedLogs.sort((a, b) => b.timestamp - a.timestamp)
+      if (projError) throw projError
+      setProjects(projData || [])
+
+      // 2. Fetch Logs for notifications (system_logs table)
+      const { data: logData, error: logError } = await supabase
+        .from('system_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(15)
+
+      if (logError) throw logError
+
       const lastRead = localStorage.getItem('rmk_notifications_read') || 0
+      const unread = (logData || []).filter(n => new Date(n.created_at).getTime() > lastRead)
 
-      const unread = extractedLogs.filter(n => n.timestamp.getTime() > lastRead)
-
-      setNotifications(extractedLogs.slice(0, 15)) // Son 15 logu göster
+      setNotifications(logData || [])
       setUnreadCount(unread.length)
 
     } catch (err) {
@@ -76,7 +71,6 @@ export default function Home() {
       fetchData()
     }
 
-    // Click outside to close notifications
     const handleClickOutside = (event) => {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
         setIsNotifOpen(false)
@@ -124,11 +118,10 @@ export default function Home() {
       <main className="content animate-fade-in" style={{ minWidth: 0 }}>
         <header className="header" style={{ marginBottom: '3rem', position: 'relative' }}>
           <div>
-            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Merhaba, {profile.full_name.split(' ')[0]}</h2>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Merhaba, {profile.full_name?.split(' ')[0]}</h2>
             <p style={{ color: 'var(--muted-foreground)' }}>Projelerin genel durumu ve sevkiyat planlaması.</p>
           </div>
 
-          {/* Notifications Dropdown */}
           <div ref={notifRef} style={{ position: 'relative' }}>
             <button
               onClick={handleNotifClick}
@@ -145,8 +138,6 @@ export default function Home() {
                 justifyContent: 'center',
                 transition: 'all 0.2s'
               }}
-              onMouseEnter={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(255,255,255,0.1)' })}
-              onMouseLeave={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(255,255,255,0.05)' })}
             >
               <Bell size={20} />
               {unreadCount > 0 && (
@@ -209,24 +200,17 @@ export default function Home() {
                         borderRadius: '8px',
                         marginBottom: '0.25rem',
                         background: 'transparent',
-                        transition: 'background 0.2s',
-                        cursor: 'default'
-                      }}
-                        onMouseEnter={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(255,255,255,0.03)' })}
-                        onMouseLeave={(e) => Object.assign(e.currentTarget.style, { background: 'transparent' })}
-                      >
+                        transition: 'background 0.2s'
+                      }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{log.user}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{log.user_full_name || 'Sistem'}</span>
                           <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
-                            {log.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(log.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                         <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.8rem', color: 'var(--foreground)', lineHeight: 1.4 }}>
-                          <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{log.status}</span>: {log.note}
+                          <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{log.action}</span>: {log.details}
                         </p>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          Aksiyon: {log.process}
-                        </div>
                       </div>
                     ))
                   )}
@@ -281,13 +265,13 @@ export default function Home() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem', color: 'var(--muted-foreground)', marginBottom: '0.25rem' }}>
                         <Calendar size={12} /> T. Başlangıç
                       </div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{proj.estStart ? new Date(proj.estStart).toLocaleDateString('tr-TR') : '-'}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{proj.est_start ? new Date(proj.est_start).toLocaleDateString('tr-TR') : '-'}</div>
                     </div>
                     <div style={{ padding: '0.75rem', background: 'rgba(59, 130, 246, 0.05)', borderRadius: 'var(--radius)', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem', color: 'var(--primary)', marginBottom: '0.25rem' }}>
                         <Truck size={12} /> T. Sevkiyat
                       </div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4ade80' }}>{proj.estShipment ? new Date(proj.estShipment).toLocaleDateString('tr-TR') : '-'}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4ade80' }}>{proj.est_shipment ? new Date(proj.est_shipment).toLocaleDateString('tr-TR') : '-'}</div>
                     </div>
                   </div>
 
@@ -310,7 +294,7 @@ export default function Home() {
           onProjectAdded={handleProjectAdded}
           initialData={editingProject}
           isAdmin={isAdmin}
-          isMock={true}
+          isMock={false}
         />
       </main>
     </div>

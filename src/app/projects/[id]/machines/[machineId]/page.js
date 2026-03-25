@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { storage } from '@/lib/storage'
+import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -35,22 +35,20 @@ export default function MachineDetail() {
     const [newFolderName, setNewFolderName] = useState('')
 
     useEffect(() => {
-        if (profile) {
-            const projects = storage.getProjects()
-            const p = projects.find(p => p.id === params.id)
+        const fetchData = async () => {
+            const { data: p } = await supabase.from('projects').select('*').eq('id', params.id).single()
             setProject(p)
 
-            const machines = storage.getMachines(params.id)
-            const m = machines.find(m => m.id === params.machineId)
+            const { data: m } = await supabase.from('machines').select('*').eq('id', params.machineId).single()
             setMachine(m)
 
-            // Load custom folders for this machine from storage
-            // We store custom folder names in a specific key
-            const savedFolders = storage.getInitialData ?
-                storage.getInitialData(`rmk_custom_folders_${params.machineId}`, []) :
-                (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem(`rmk_custom_folders_${params.machineId}`) || '[]') : [])
-
+            // Load custom folders for this machine from localStorage for now
+            const savedFolders = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem(`rmk_custom_folders_${params.machineId}`) || '[]') : []
             setCustomFolders(savedFolders)
+        }
+
+        if (profile) {
+            fetchData()
         }
     }, [profile, params.id, params.machineId])
 
@@ -113,7 +111,7 @@ export default function MachineDetail() {
                             </div>
                             <div>
                                 <h2 style={{ fontSize: '2.25rem', fontWeight: 800 }}>{machine?.name}</h2>
-                                <p style={{ color: 'var(--muted-foreground)', fontSize: '1rem' }}>Model: {machine?.model} | {machine?.serialNumber}</p>
+                                <p style={{ color: 'var(--muted-foreground)', fontSize: '1rem' }}>Model: {machine?.model} | {machine?.serial_number}</p>
                             </div>
                         </div>
                     </div>
