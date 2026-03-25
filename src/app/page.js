@@ -288,15 +288,15 @@ export default function Home() {
           )}
         </section>
 
-        <ProjectModal
-          isOpen={isProjectModalOpen}
-          onClose={handleCloseModal}
-          onProjectAdded={handleProjectAdded}
-          initialData={editingProject}
-          isAdmin={isAdmin}
-          isMock={false}
-        />
       </main>
+      <ProjectModal
+        isOpen={isProjectModalOpen}
+        onClose={handleCloseModal}
+        onProjectAdded={handleProjectAdded}
+        initialData={editingProject}
+        isAdmin={isAdmin}
+        isMock={false}
+      />
     </div>
   )
 }

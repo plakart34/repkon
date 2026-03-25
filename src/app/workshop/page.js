@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
@@ -32,6 +33,10 @@ import {
     Trash2,
     MoreVertical
 } from 'lucide-react'
+
+const getToday = () => {
+    return new Date().toISOString().split('T')[0];
+};
 
 export default function WorkshopPage() {
     const { profile, loading: authLoading } = usePermissions()
@@ -67,7 +72,7 @@ export default function WorkshopPage() {
 
     const [logData, setLogData] = useState({
         process: '',
-        targetDate: '',
+        targetDate: getToday(),
         responsibleDept: '',
         responsiblePersonId: '',
         notes: ''
@@ -168,13 +173,19 @@ export default function WorkshopPage() {
         e.preventDefault()
         const respPerson = members.find(m => m.id === logData.responsiblePersonId)
         const machine = machines.find(m => m.id === selectedMachineId)
+        const project = projects.find(p => p.id === selectedProjectId)
+        const bom = bomItems.find(b => b.id === selectedBomId)
 
         const opData = {
             project_id: selectedProjectId,
-            project_name: projects.find(p => p.id === selectedProjectId)?.name,
+            project_name: project?.name,
             machine_id: selectedMachineId,
             machine_name: machine?.name,
             machine_model: machine?.model,
+            bom_id: selectedBomId,
+            bom_code: bom?.code,
+            bom_name: bom?.name,
+            name: logData.process,
             process: logData.process,
             target_date: logData.targetDate,
             responsible_dept: logData.responsibleDept,
@@ -186,7 +197,8 @@ export default function WorkshopPage() {
                 note: logData.process,
                 timestamp: new Date().toISOString(),
                 user: profile.full_name
-            }]
+            }],
+            parent_id: logData.predecessorId || null
         }
 
         if (selectedOp) {
@@ -202,7 +214,7 @@ export default function WorkshopPage() {
         fetchData()
         setIsLogModalOpen(false)
         setSelectedOp(null)
-        setLogData({ process: '', targetDate: '', responsibleDept: '', responsiblePersonId: '', notes: '' })
+        setLogData({ process: '', targetDate: getToday(), responsibleDept: '', responsiblePersonId: '', notes: '', predecessorId: '' })
     }
 
     const getSortedOperations = () => {
@@ -238,7 +250,7 @@ export default function WorkshopPage() {
         const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
         if (diffDays < 0) return { color: '#ef4444', className: 'animate-blink', fontWeight: 700 };
         if (diffDays <= 3) return { color: '#facc15', className: '', fontWeight: 700 };
-        return { color: 'white', className: '' };
+        return { color: 'var(--foreground)', className: '' };
     };
 
     const handleDelete = async (id) => {
@@ -525,7 +537,29 @@ export default function WorkshopPage() {
                                         >
                                             <td style={{ padding: '0.75rem' }}>
                                                 <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.order_id}</div>
-                                                <span className="status-badge" style={{ background: getStatusColor(op.status).bg, color: getStatusColor(op.status).text, fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>{op.status}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                                    <span className="status-badge" style={{ background: getStatusColor(op.status).bg, color: getStatusColor(op.status).text, fontSize: '0.75rem', padding: '0.1rem 0.4rem', width: 'fit-content' }}>{op.status}</span>
+                                                    {op.parent_id && (() => {
+                                                        const parent = operations.find(o => o.id === op.parent_id);
+                                                        if (!parent) return null;
+                                                        return (
+                                                            <div style={{
+                                                                fontSize: '0.65rem',
+                                                                color: parent.status === 'Tamamlandı' ? '#4ade80' : '#f87171',
+                                                                background: 'rgba(255,255,255,0.03)',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                border: '1px solid rgba(255,255,255,0.05)',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px'
+                                                            }}>
+                                                                <span style={{ opacity: 0.6 }}>Öncül:</span> {parent.order_id}
+                                                                <span style={{ fontWeight: 700, fontStyle: 'italic' }}>({parent.status})</span>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)' }}>{op.project_name}</td>
                                             <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
@@ -581,12 +615,12 @@ export default function WorkshopPage() {
             </main>
 
             {/* Modals */}
-            {isLogModalOpen && (
+            {isLogModalOpen && typeof document !== 'undefined' && createPortal(
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
                     <div className="card animate-fade-in" style={{ width: '600px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '90vh', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
                             <h3 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{selectedOp ? 'Aksiyonu Düzenle' : 'Yeni Aksiyon Başlat'}</h3>
-                            <button onClick={() => { setIsLogModalOpen(false); setSelectedOp(null); setLogData({ process: '', targetDate: '', responsibleDept: '', responsiblePersonId: '', notes: '' }); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+                            <button onClick={() => { setIsLogModalOpen(false); setSelectedOp(null); setLogData({ process: '', targetDate: getToday(), responsibleDept: '', responsiblePersonId: '', notes: '', predecessorId: '' }); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
                                 <X size={28} />
                             </button>
                         </div>
@@ -604,7 +638,7 @@ export default function WorkshopPage() {
                                     <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Makine</label>
                                     <select disabled={!selectedProjectId} required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={selectedMachineId} onChange={e => setSelectedMachineId(e.target.value)}>
                                         <option value="">Makine Seçin</option>
-                                        {machines.map(m => <option key={m.id} value={m.id}>{m.name} ({m.model})</option>)}
+                                        {machines.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -653,9 +687,29 @@ export default function WorkshopPage() {
                                 </div>
                             </div>
 
-                            <div style={{ marginBottom: '2.5rem' }}>
+                            <div style={{ marginBottom: '1.5rem' }}>
                                 <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Hedef Tamamlanma Tarihi</label>
                                 <input type="date" required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={logData.targetDate} onChange={e => setLogData({ ...logData, targetDate: e.target.value })} />
+                            </div>
+
+                            <div style={{ marginBottom: '2.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Öncül Aksiyon (Bağımlılık)</label>
+                                <select
+                                    style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
+                                    value={logData.predecessorId}
+                                    onChange={e => setLogData({ ...logData, predecessorId: e.target.value })}
+                                >
+                                    <option value="">Seçilmedi (Bağımsız)</option>
+                                    {operations
+                                        .filter(o => !selectedOp || o.id !== selectedOp.id)
+                                        .sort((a, b) => (a.order_id > b.order_id ? -1 : 1))
+                                        .map(o => (
+                                            <option key={o.id} value={o.id} style={{ background: 'var(--card)' }}>
+                                                {o.order_id} - {o.process.substring(0, 40)}... ({o.status})
+                                            </option>
+                                        ))
+                                    }
+                                </select>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -664,10 +718,11 @@ export default function WorkshopPage() {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {isStatusModalOpen && (
+            {isStatusModalOpen && typeof document !== 'undefined' && createPortal(
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
                     <div className="card animate-fade-in" style={{ width: '450px', padding: '2.5rem', background: 'var(--card)' }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{selectedOp?.order_id} / Statü Güncelle</h3>
@@ -696,10 +751,11 @@ export default function WorkshopPage() {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {isTimelineModalOpen && (
+            {isTimelineModalOpen && typeof document !== 'undefined' && createPortal(
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(15px)' }}>
                     <div className="card animate-fade-in" style={{ width: '600px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '90vh', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem', alignItems: 'center' }}>
@@ -735,12 +791,13 @@ export default function WorkshopPage() {
                             ))}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
 
             {/* Global Context Menu */}
-            {activeOpMenuId && operations.find(o => o.id === activeOpMenuId) && (
+            {activeOpMenuId && operations.find(o => o.id === activeOpMenuId) && typeof document !== 'undefined' && createPortal(
                 <div
                     className="card animate-fade-in"
                     style={{
@@ -750,64 +807,77 @@ export default function WorkshopPage() {
                         zIndex: 999999,
                         minWidth: '220px',
                         padding: '0.6rem',
-                        background: '#18181b',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        boxShadow: '0 25px 70px rgba(0, 0, 0, 1)',
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-xl)',
+                        borderRadius: '16px',
                         textAlign: 'left',
+                        backdropFilter: 'blur(10px)'
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     {(() => {
                         const op = operations.find(o => o.id === activeOpMenuId);
+                        const itemStyle = {
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.7rem',
+                            width: '100%',
+                            padding: '0.75rem',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--foreground)',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            borderRadius: '10px',
+                            transition: 'all 0.2s ease'
+                        }
                         return (
                             <>
-                                <div style={{ padding: '0.6rem 0.6rem 0.4rem 0.6rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '0.4rem' }}>
+                                <div style={{ padding: '0.6rem 0.6rem 0.4rem 0.6rem', borderBottom: '1px solid var(--border)', marginBottom: '0.4rem' }}>
                                     <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.1rem' }}>{op.order_id}</div>
                                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.project_name}</div>
                                 </div>
                                 <button
                                     onClick={() => { setSelectedOp(op); setStatusUpdate({ status: op.status, note: '' }); setIsStatusModalOpen(true); setActiveOpMenuId(null); }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', width: '100%', padding: '0.75rem', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', borderRadius: 'var(--radius)' }}
+                                    style={{ ...itemStyle }}
                                     className="nav-item-mini"
                                 >
-                                    <Play size={14} /> Statü Güncelle
+                                    <Play size={14} color="var(--primary)" /> Statü Güncelle
                                 </button>
                                 <button
                                     onClick={() => {
                                         setSelectedOp(op);
                                         setActiveOpMenuId(null);
-                                        const proj = projects.find(p => p.name === op.projectName);
-                                        if (proj) {
-                                            setSelectedProjectId(proj.id);
-                                            const mach = storage.getMachines(proj.id).find(m => m.name === op.machineName);
-                                            if (mach) {
-                                                setSelectedMachineId(mach.id);
-                                                setTimeout(() => {
-                                                    const bom = storage.getBOM(mach.id, op.listType.toLowerCase()).find(b => b.code === op.bomCode);
-                                                    if (bom) setSelectedBomId(bom.id);
-                                                    const resp = members.find(m => m.full_name === op.responsiblePerson);
-                                                    setLogData({ process: op.process, targetDate: op.targetDate, responsibleDept: op.responsibleDept, responsiblePersonId: resp ? resp.id : '', notes: op.notes });
-                                                    setIsLogModalOpen(true);
-                                                }, 100);
-                                            }
-                                        }
+                                        setSelectedProjectId(op.project_id);
+                                        setSelectedMachineId(op.machine_id);
+                                        setSelectedBomId(op.bom_id);
+                                        setLogData({
+                                            process: op.process,
+                                            targetDate: op.target_date || getToday(),
+                                            responsibleDept: op.responsible_dept,
+                                            responsiblePersonId: op.responsible_person_id,
+                                            notes: op.notes || '',
+                                            predecessorId: op.parent_id || ''
+                                        });
+                                        setIsLogModalOpen(true);
                                     }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', width: '100%', padding: '0.75rem', background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer', fontSize: '0.9rem', borderRadius: 'var(--radius)' }}
+                                    style={{ ...itemStyle }}
                                     className="nav-item-mini"
                                 >
-                                    <Edit3 size={14} color="#3b82f6" /> Düzenle
+                                    <Edit3 size={14} color="var(--primary)" /> Düzenle
                                 </button>
                                 <button
                                     onClick={() => { setSelectedOp(op); setIsTimelineModalOpen(true); setActiveOpMenuId(null); }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', width: '100%', padding: '0.75rem', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', borderRadius: 'var(--radius)' }}
+                                    style={{ ...itemStyle }}
                                     className="nav-item-mini"
                                 >
-                                    <Activity size={14} /> Süreç Geçmişi
+                                    <Activity size={14} color="var(--primary)" /> Süreç Geçmişi
                                 </button>
-                                <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '0.3rem 0' }} />
+                                <div style={{ height: '1px', background: 'var(--border)', margin: '0.3rem 0' }} />
                                 <button
                                     onClick={() => { handleDelete(op.id); setActiveOpMenuId(null); }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', width: '100%', padding: '0.75rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.9rem', borderRadius: 'var(--radius)' }}
+                                    style={{ ...itemStyle, color: '#ef4444' }}
                                     className="nav-item-mini"
                                 >
                                     <Trash2 size={14} /> Sil
@@ -815,7 +885,8 @@ export default function WorkshopPage() {
                             </>
                         );
                     })()}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     )

@@ -9,12 +9,17 @@ export function usePermissions() {
     const router = useRouter()
 
     const checkUser = useCallback(async () => {
-        if (typeof window === 'undefined') return
+        // Skip check if we're on the server or missing supabase config
+        if (typeof window === 'undefined' || !supabase) {
+            setLoading(false)
+            return
+        }
 
         try {
-            const { data: { user } } = await supabase.auth.getUser()
+            const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-            if (!user) {
+            if (authError || !user) {
+                console.warn('Auth check: No user found or auth error:', authError)
                 if (pathname !== '/login') {
                     router.replace('/login')
                 }
@@ -30,18 +35,21 @@ export function usePermissions() {
                 .single()
 
             if (profileError || !profileData) {
-                console.error('Profile error:', profileError)
+                console.error('Profile fetch error:', profileError)
+                // If profile doesn't exist, we can't determine permissions
+                if (pathname !== '/login') router.replace('/login')
                 setLoading(false)
                 return
             }
 
-            // Supabase returns roles as an object if joined
             const role = profileData.roles
             const profileWithRole = { ...user, ...profileData, roles: role }
 
-            if (!profile || profile.id !== user.id) {
-                setProfile(profileWithRole)
-            }
+            // Update profile state only if it changed to prevent loops
+            setProfile(prev => {
+                if (!prev || prev.id !== profileWithRole.id) return profileWithRole
+                return prev
+            })
 
             const allowedPaths = role?.permissions || []
             const isAdmin = role?.name === 'Admin'
@@ -67,14 +75,17 @@ export function usePermissions() {
                 router.replace('/')
             }
         } catch (error) {
-            console.error('Auth check error:', error)
+            console.error('Critical auth check error:', error)
         } finally {
+            // Guarantee loading is false after attempt
             setLoading(false)
         }
-    }, [pathname, router, profile])
+    }, [pathname, router]) // Removed profile dependency to avoid recreation loops
 
     useEffect(() => {
-        checkUser()
+        let isMounted = true
+        if (isMounted) checkUser()
+        return () => { isMounted = false }
     }, [pathname, checkUser])
 
     return { profile, loading }

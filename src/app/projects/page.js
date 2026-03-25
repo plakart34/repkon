@@ -208,15 +208,15 @@ export default function ProjectsPage() {
                     )}
                 </div>
 
-                <ProjectModal
-                    isOpen={isModalOpen}
-                    onClose={handleCloseModal}
-                    onProjectAdded={fetchData}
-                    initialData={editingProject}
-                    isAdmin={isAdmin}
-                    isMock={false}
-                />
             </main>
+            <ProjectModal
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                onProjectAdded={fetchData}
+                initialData={editingProject}
+                isAdmin={isAdmin}
+                isMock={false}
+            />
         </div>
     )
 }

@@ -30,7 +30,7 @@ export default function ProjectDetail() {
     const [editingMachine, setEditingMachine] = useState(null)
 
     // Machine Form
-    const [newMachine, setNewMachine] = useState({ name: '', model: '', status: 'Üretimde' })
+    const [newMachine, setNewMachine] = useState({ name: '', status: 'Montaj' })
 
     const fetchData = async () => {
         if (!id) return
@@ -86,7 +86,7 @@ export default function ProjectDetail() {
         }
 
         fetchData()
-        setNewMachine({ name: '', model: '', status: 'Üretimde' })
+        setNewMachine({ name: '', status: 'Montaj' })
         setEditingMachine(null)
         setIsMachineModalOpen(false)
     }
@@ -102,7 +102,7 @@ export default function ProjectDetail() {
 
     const handleEditMachine = (m) => {
         setEditingMachine(m)
-        setNewMachine({ name: m.name, model: m.model, status: m.status })
+        setNewMachine({ name: m.name, status: m.status })
         setIsMachineModalOpen(true)
         setActiveMenuId(null)
     }
@@ -201,8 +201,7 @@ export default function ProjectDetail() {
                                     </div>
                                 </div>
 
-                                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1.15rem', fontWeight: 700 }}>{m.name}</h4>
-                                <p style={{ color: 'var(--muted-foreground)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>Model: {m.model || 'Belirtilmemiş'}</p>
+                                <h4 style={{ margin: '0 0 1.5rem 0', fontSize: '1.15rem', fontWeight: 700 }}>{m.name}</h4>
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4ade80' }}>
@@ -230,7 +229,7 @@ export default function ProjectDetail() {
                                     </div>
                                     <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{editingMachine ? 'Makineyi Düzenle' : 'Yeni Makine Ekle'}</h3>
                                 </div>
-                                <button onClick={() => { setIsMachineModalOpen(false); setEditingMachine(null); setNewMachine({ name: '', model: '', status: 'Üretimde' }); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+                                <button onClick={() => { setIsMachineModalOpen(false); setEditingMachine(null); setNewMachine({ name: '', status: 'Montaj' }); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
                                     <Plus size={24} style={{ transform: 'rotate(45deg)' }} />
                                 </button>
                             </div>
@@ -243,15 +242,6 @@ export default function ProjectDetail() {
                                         style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
                                         value={newMachine.name}
                                         onChange={e => setNewMachine({ ...newMachine, name: e.target.value })}
-                                        placeholder=""
-                                    />
-                                </div>
-                                <div style={{ marginBottom: '1.5rem' }}>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Model / Seri No</label>
-                                    <input
-                                        style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
-                                        value={newMachine.model}
-                                        onChange={e => setNewMachine({ ...newMachine, model: e.target.value })}
                                         placeholder=""
                                     />
                                 </div>
@@ -270,7 +260,7 @@ export default function ProjectDetail() {
                                 </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <button type="button" onClick={() => { setIsMachineModalOpen(false); setEditingMachine(null); setNewMachine({ name: '', model: '', status: 'Üretimde' }); }} className="btn" style={{ background: 'var(--secondary)', color: 'white' }}>İptal</button>
+                                    <button type="button" onClick={() => { setIsMachineModalOpen(false); setEditingMachine(null); setNewMachine({ name: '', status: 'Montaj' }); }} className="btn" style={{ background: 'var(--secondary)', color: 'white' }}>İptal</button>
                                     <button type="submit" className="btn btn-primary" style={{ padding: '0.75rem' }}>
                                         {editingMachine ? 'Değişiklikleri Kaydet' : 'Makineyi Kaydet'}
                                     </button>

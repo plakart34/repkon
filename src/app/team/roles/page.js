@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
@@ -76,7 +77,7 @@ export default function RolesPage() {
     ]
 
     const fetchData = async () => {
-        const { data } = await supabase.from('roles').select('*')
+        const { data } = await supabase.from('roles').select('*').order('name')
         setRoles(data || [])
     }
 
@@ -155,9 +156,14 @@ export default function RolesPage() {
                 newPerms = [...currentPerms, path]
             }
 
+            // Optimistic update
+            setRoles(prev => prev.map(r => r.id === roleId ? { ...r, permissions: newPerms } : r))
+
             const { error } = await supabase.from('roles').update({ permissions: newPerms }).eq('id', roleId)
-            if (error) alert(error.message)
-            fetchData()
+            if (error) {
+                alert(error.message)
+                fetchData() // Rollback
+            }
         }
     }
 
@@ -236,7 +242,7 @@ export default function RolesPage() {
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                                     {group.permissions.map(item => {
-                                                        const isAllowed = role.permissions.includes(item.path) || role.name === 'Admin'
+                                                        const isAllowed = role.permissions?.includes(item.path) || role.name === 'Admin'
 
                                                         return (
                                                             <div
@@ -253,7 +259,8 @@ export default function RolesPage() {
                                                                     border: '1px solid',
                                                                     borderColor: isAllowed ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
                                                                 }}
-                                                                onClick={() => {
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
                                                                     if (role.name === 'Admin') return // Cannot change Admin
                                                                     handleTogglePermission(role.id, item.path)
                                                                 }}
@@ -284,53 +291,54 @@ export default function RolesPage() {
                     </div>
                 </section>
 
-                {isModalOpen && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
-                        <div className="card animate-fade-in" style={{ width: '450px', padding: '2.5rem', background: 'var(--card)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', borderRadius: '0.5rem' }}>
-                                        <Shield size={20} />
-                                    </div>
-                                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{modalData.id ? 'Rolü Düzenle' : 'Yeni Rol Oluştur'}</h3>
+            </main>
+            {isModalOpen && typeof document !== 'undefined' && createPortal(
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
+                    <div className="card animate-fade-in" style={{ width: '450px', padding: '2.5rem', background: 'var(--card)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', borderRadius: '0.5rem' }}>
+                                    <Shield size={20} />
                                 </div>
-                                <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
-                                    <X size={24} />
-                                </button>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{modalData.id ? 'Rolü Düzenle' : 'Yeni Rol Oluştur'}</h3>
+                            </div>
+                            <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveRole}>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Rol Adı</label>
+                                <input
+                                    required
+                                    style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
+                                    value={modalData.name}
+                                    onChange={e => setModalData({ ...modalData, name: e.target.value })}
+                                    placeholder="Örn: Operatör"
+                                />
+                            </div>
+                            <div style={{ marginBottom: '2.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Açıklama</label>
+                                <textarea
+                                    style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', minHeight: '80px' }}
+                                    value={modalData.description}
+                                    onChange={e => setModalData({ ...modalData, description: e.target.value })}
+                                    placeholder="Rolün görev tanımı..."
+                                />
                             </div>
 
-                            <form onSubmit={handleSaveRole}>
-                                <div style={{ marginBottom: '1.5rem' }}>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Rol Adı</label>
-                                    <input
-                                        required
-                                        style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
-                                        value={modalData.name}
-                                        onChange={e => setModalData({ ...modalData, name: e.target.value })}
-                                        placeholder="Örn: Operatör"
-                                    />
-                                </div>
-                                <div style={{ marginBottom: '2.5rem' }}>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Açıklama</label>
-                                    <textarea
-                                        style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', minHeight: '80px' }}
-                                        value={modalData.description}
-                                        onChange={e => setModalData({ ...modalData, description: e.target.value })}
-                                        placeholder="Rolün görev tanımı..."
-                                    />
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <button type="button" onClick={() => setIsModalOpen(false)} className="btn" style={{ background: 'var(--secondary)', color: 'var(--foreground)' }}>İptal</button>
-                                    <button type="submit" className="btn btn-primary">
-                                        {modalData.id ? 'Değişiklikleri Kaydet' : 'Rolu Oluştur'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="btn" style={{ background: 'var(--secondary)', color: 'var(--foreground)' }}>İptal</button>
+                                <button type="submit" className="btn btn-primary">
+                                    {modalData.id ? 'Değişiklikleri Kaydet' : 'Rolu Oluştur'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                )}
-            </main>
+                </div>,
+                document.body
+            )}
         </div>
     )
 }

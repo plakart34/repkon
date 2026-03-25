@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { X, Briefcase, AlertCircle, Calendar } from 'lucide-react'
 
@@ -59,7 +60,7 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
         }
     }, [initialData, isOpen])
 
-    if (!isOpen) return null
+    if (!isOpen || typeof document === 'undefined') return null
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -94,7 +95,7 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
     const isEditing = !!initialData
     const canEdit = !isEditing || isAdmin
 
-    return (
+    return createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
             <div className="card animate-fade-in" style={{ width: '500px', maxHeight: '90vh', overflowY: 'auto', maxWidth: '90vw', border: '1px solid var(--border)', background: 'var(--card)', padding: '2.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
@@ -250,6 +251,7 @@ export default function ProjectModal({ isOpen, onClose, onProjectAdded, initialD
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }

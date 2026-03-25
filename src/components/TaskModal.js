@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { storage } from '@/lib/storage'
 import { X, CheckSquare, AlertCircle } from 'lucide-react'
 
@@ -16,7 +17,7 @@ export default function TaskModal({ isOpen, onClose, projects, onTaskAdded, isMo
         assigned_to: ''
     })
 
-    if (!isOpen) return null
+    if (!isOpen || typeof document === 'undefined') return null
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -37,7 +38,7 @@ export default function TaskModal({ isOpen, onClose, projects, onTaskAdded, isMo
         }
     }
 
-    return (
+    return createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
             <div className="card animate-fade-in" style={{ width: '500px', maxWidth: '90vw', border: '1px solid var(--border)', background: 'var(--card)', padding: '2.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
@@ -115,6 +116,7 @@ export default function TaskModal({ isOpen, onClose, projects, onTaskAdded, isMo
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }

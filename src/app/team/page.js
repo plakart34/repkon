@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -208,7 +209,7 @@ function TeamContent() {
                 {!selectedDept ? (
                     <div className="project-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                         {departments.length === 0 ? (
-                            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '10rem', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)' }}>
+                            <div key="empty-depts" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '10rem', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)' }}>
                                 <Folder size={48} className="text-primary" style={{ margin: '0 auto 1.5rem auto' }} />
                                 <p style={{ color: 'var(--muted-foreground)' }}>Henüz bir bölüm oluşturulmadı.</p>
                                 <button onClick={() => setIsDeptModalOpen(true)} className="btn btn-primary" style={{ marginTop: '1rem' }}>İlk Klasörü Ekle</button>
@@ -340,7 +341,7 @@ function TeamContent() {
                                 </div>
                             ))}
                             {getDeptMembers(selectedDept).length === 0 && (
-                                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '5rem', color: 'var(--muted-foreground)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)' }}>
+                                <div key="empty-staff" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '5rem', color: 'var(--muted-foreground)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)' }}>
                                     Bu departmanda henüz kayıtlı personel bulunmuyor.
                                 </div>
                             )}
@@ -348,132 +349,158 @@ function TeamContent() {
                     </div>
                 )}
 
-                {/* Dept Modal */}
-                {isDeptModalOpen && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
-                        <div className="card animate-fade-in" style={{ width: '400px', padding: '2.5rem', background: 'var(--card)' }}>
-                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{editingDept ? 'Klasörü Düzenle' : 'Yeni Bölüm Klasörü Ekle'}</h3>
-                            <form onSubmit={handleSaveDept}>
-                                <div style={{ marginBottom: '1.5rem' }}>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Bölüm Adı</label>
-                                    <input required autoFocus style={{ width: '100%', padding: '0.75rem' }} value={newDeptName} onChange={e => setNewDeptName(e.target.value)} placeholder="Örn: Mekanik Montaj" />
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <button type="button" onClick={() => {
-                                        setIsDeptModalOpen(false)
-                                        setEditingDept(null)
-                                    }} className="btn" style={{ background: 'var(--secondary)', color: 'white' }}>İptal</button>
-                                    <button type="submit" className="btn btn-primary">{editingDept ? 'Güncelle' : 'Klasörü Oluştur'}</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
+            </main>
 
-                {/* Staff Modal */}
-                {isStaffModalOpen && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(15px)' }}>
-                        <div className="card animate-fade-in" style={{ width: '700px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '95vh', overflowY: 'auto' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem', alignItems: 'center' }}>
-                                <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{selectedDept} / {editingStaff ? 'Personel Düzenle' : 'Personel Kaydı'}</h3>
-                                <button onClick={() => { setIsStaffModalOpen(false); setEditingStaff(null); setFormData({ full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false }); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
-                                    <X size={28} />
-                                </button>
+            {/* Dept Modal */}
+            {isDeptModalOpen && typeof document !== 'undefined' && createPortal(
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
+                    <div className="card animate-fade-in" style={{ width: '400px', padding: '2.5rem', background: 'var(--card)' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{editingDept ? 'Klasörü Düzenle' : 'Yeni Bölüm Klasörü Ekle'}</h3>
+                        <form onSubmit={handleSaveDept}>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Bölüm Adı</label>
+                                <input required autoFocus style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={newDeptName} onChange={e => setNewDeptName(e.target.value)} placeholder="Örn: Mekanik Montaj" />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <button type="button" onClick={() => {
+                                    setIsDeptModalOpen(false)
+                                    setEditingDept(null)
+                                }} className="btn" style={{ background: 'var(--secondary)', color: 'white' }}>İptal</button>
+                                <button type="submit" className="btn btn-primary">{editingDept ? 'Güncelle' : 'Klasörü Oluştur'}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Staff Modal */}
+            {isStaffModalOpen && typeof document !== 'undefined' && createPortal(
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(15px)' }}>
+                    <div className="card animate-fade-in" style={{ width: '700px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '95vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{selectedDept} / {editingStaff ? 'Personel Düzenle' : 'Personel Kaydı'}</h3>
+                            <button onClick={() => { setIsStaffModalOpen(false); setEditingStaff(null); setFormData({ full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false }); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+                                <X size={28} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleRegister}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Ad Soyad</label>
+                                    <input
+                                        required
+                                        style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
+                                        value={formData.full_name}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            const emailBase = val.toLowerCase()
+                                                .replace(/ç/g, 'c')
+                                                .replace(/ğ/g, 'g')
+                                                .replace(/ı/g, 'i')
+                                                .replace(/i̇/g, 'i')
+                                                .replace(/ö/g, 'o')
+                                                .replace(/ş/g, 's')
+                                                .replace(/ü/g, 'u')
+                                                .trim()
+                                                .replace(/\s+/g, '.');
+                                            setFormData({
+                                                ...formData,
+                                                full_name: val,
+                                                email: val ? `${emailBase}@repkon.com.tr` : ''
+                                            });
+                                        }}
+                                        placeholder="Örn: Ahmet Yılmaz"
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>E-posta Adresi</label>
+                                    <input required type="email" style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="ahmet@rmk.com" />
+                                </div>
                             </div>
 
-                            <form onSubmit={handleRegister}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Ad Soyad</label>
-                                        <input required style={{ width: '100%', padding: '0.75rem' }} value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} placeholder="Örn: Ahmet Yılmaz" />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>E-posta Adresi</label>
-                                        <input required type="email" style={{ width: '100%', padding: '0.75rem' }} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="ahmet@rmk.com" />
-                                    </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Cep Telefonu</label>
+                                    <input style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
                                 </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Cep Telefonu</label>
-                                        <input style={{ width: '100%', padding: '0.75rem' }} value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Dahili Telefon</label>
-                                        <input style={{ width: '100%', padding: '0.75rem' }} value={formData.extension} onChange={e => setFormData({ ...formData, extension: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>İş Telefonu</label>
-                                        <input style={{ width: '100%', padding: '0.75rem' }} value={formData.business_phone} onChange={e => setFormData({ ...formData, business_phone: e.target.value })} />
-                                    </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Dahili Telefon</label>
+                                    <input style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={formData.extension} onChange={e => setFormData({ ...formData, extension: e.target.value })} />
                                 </div>
-
-                                <div style={{ marginBottom: '1.5rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Görev Tanımı</label>
-                                        <input required style={{ width: '100%', padding: '0.75rem' }} value={formData.task_description} onChange={e => setFormData({ ...formData, task_description: e.target.value })} placeholder="Örn: CNC Operatörü" />
-                                    </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>İş Telefonu</label>
+                                    <input style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={formData.business_phone} onChange={e => setFormData({ ...formData, business_phone: e.target.value })} />
                                 </div>
+                            </div>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                                    <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                            <div>
-                                                <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Sistem Erişimi</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>Bu personel sisteme girebilsin mi?</div>
-                                            </div>
-                                            <div
-                                                onClick={() => setFormData({ ...formData, can_login: !formData.can_login })}
-                                                style={{
-                                                    width: '44px',
-                                                    height: '24px',
-                                                    borderRadius: '12px',
-                                                    background: formData.can_login ? 'var(--primary)' : 'var(--secondary)',
-                                                    position: 'relative',
-                                                    cursor: 'pointer',
-                                                    transition: '0.3s'
-                                                }}
-                                            >
-                                                <div style={{
-                                                    width: '18px',
-                                                    height: '18px',
-                                                    borderRadius: '50%',
-                                                    background: 'white',
-                                                    position: 'absolute',
-                                                    top: '3px',
-                                                    left: formData.can_login ? '23px' : '3px',
-                                                    transition: '0.3s'
-                                                }} />
-                                            </div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Görev Tanımı</label>
+                                    <input required style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={formData.task_description} onChange={e => setFormData({ ...formData, task_description: e.target.value })} placeholder="Örn: CNC Operatörü" />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                                <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div>
+                                            <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Sistem Erişimi</div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>Bu personel sisteme girebilsin mi?</div>
+                                        </div>
+                                        <div
+                                            onClick={() => setFormData({ ...formData, can_login: !formData.can_login })}
+                                            style={{
+                                                width: '44px',
+                                                height: '24px',
+                                                borderRadius: '12px',
+                                                background: formData.can_login ? 'var(--primary)' : 'var(--secondary)',
+                                                position: 'relative',
+                                                cursor: 'pointer',
+                                                transition: '0.3s'
+                                            }}
+                                        >
+                                            <div style={{
+                                                width: '18px',
+                                                height: '18px',
+                                                borderRadius: '50%',
+                                                background: 'white',
+                                                position: 'absolute',
+                                                top: '3px',
+                                                left: formData.can_login ? '23px' : '3px',
+                                                transition: '0.3s'
+                                            }} />
                                         </div>
                                     </div>
+                                </div>
 
-                                    {formData.can_login && (
-                                        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Geçici Şifre</label>
-                                                <input required={formData.can_login} type="text" style={{ width: '100%', padding: '0.75rem' }} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
-                                            </div>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yetki Rolü</label>
-                                                <select required={formData.can_login} style={{ width: '100%', padding: '0.75rem' }} value={formData.role_id} onChange={e => setFormData({ ...formData, role_id: e.target.value })}>
-                                                    <option value="">Rol Seçin</option>
-                                                    {roles.filter(r => r.name !== 'Admin').map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                                </select>
-                                            </div>
+                                {formData.can_login && (
+                                    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Geçici Şifre</label>
+                                            <input required={formData.can_login} type="text" style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
                                         </div>
-                                    )}
-                                </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yetki Rolü</label>
+                                            <select required={formData.can_login} style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={formData.role_id} onChange={e => setFormData({ ...formData, role_id: e.target.value })}>
+                                                <option value="">Rol Seçin</option>
+                                                {roles.filter(r => r.name !== 'Admin').map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <button type="button" onClick={() => { setIsStaffModalOpen(false); setEditingStaff(null); setFormData({ full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false }); }} className="btn" style={{ background: 'var(--secondary)', color: 'white' }}>İptal</button>
-                                    <button type="submit" className="btn btn-primary">{editingStaff ? 'Değişiklikleri Kaydet' : 'Personeli Kaydet'}</button>
-                                </div>
-                            </form>
-                        </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <button type="button" onClick={() => { setIsStaffModalOpen(false); setEditingStaff(null); setFormData({ full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false }); }} className="btn" style={{ background: 'var(--secondary)', color: 'white' }}>İptal</button>
+                                <button type="submit" className="btn btn-primary">{editingStaff ? 'Değişiklikleri Kaydet' : 'Personeli Kaydet'}</button>
+                            </div>
+                        </form>
                     </div>
-                )}
-            </main>
+                </div>,
+                document.body
+            )}
         </div>
     )
 }
