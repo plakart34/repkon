@@ -63,10 +63,10 @@ export default function WorkshopPage() {
     const [selectedOp, setSelectedOp] = useState(null)
     const [statusUpdate, setStatusUpdate] = useState({ status: '', note: '' })
 
-    const [filterSorumlu, setFilterSorumlu] = useState('')
+    const [filterSorumlu, setFilterSorumlu] = useState([])
     const [filterStatu, setFilterStatu] = useState([])
-    const [filterProje, setFilterProje] = useState('')
-    const [filterMakine, setFilterMakine] = useState('')
+    const [filterProje, setFilterProje] = useState([])
+    const [filterMakine, setFilterMakine] = useState([])
     const [searchTerm, setSearchTerm] = useState('')
     const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
@@ -118,7 +118,13 @@ export default function WorkshopPage() {
                 setIsTimelineModalOpen(false); setSelectedOp(null); setActiveOpMenuId(null);
             }
         }
-        const handleOutsideClick = () => setActiveOpMenuId(null)
+        const handleOutsideClick = () => {
+            setActiveOpMenuId(null);
+            ['proje-dropdown', 'makine-dropdown', 'sorumlu-dropdown', 'status-dropdown'].forEach(id => {
+                const dropdown = document.getElementById(id);
+                if (dropdown) dropdown.style.display = 'none';
+            });
+        }
         window.addEventListener('click', handleOutsideClick)
         window.addEventListener('keydown', handleKeyDown)
         return () => {
@@ -153,11 +159,11 @@ export default function WorkshopPage() {
 
     const filteredOperations = useMemo(() => {
         return operations.filter(op => {
-            const matchSorumlu = !filterSorumlu || op.responsible_person === filterSorumlu
+            const matchSorumlu = filterSorumlu.length === 0 || filterSorumlu.includes(op.responsible_person)
             const matchStatu = filterStatu.length === 0 || filterStatu.includes(op.status)
-            const matchProje = !filterProje || op.project_name === filterProje
+            const matchProje = filterProje.length === 0 || filterProje.includes(op.project_name)
             const opMachineFull = `${op.machine_name} (${op.machine_model || '-'})`
-            const matchMakine = !filterMakine || opMachineFull === filterMakine
+            const matchMakine = filterMakine.length === 0 || filterMakine.includes(opMachineFull)
 
             const searchStr = `${op.order_id} ${op.project_name} ${op.machine_name} ${op.machine_model} ${op.responsible_person} ${op.responsible_dept} ${op.process} ${op.bom_code} ${op.bom_name}`.toLowerCase()
             const matchSearch = !searchTerm || searchStr.includes(searchTerm.toLowerCase())
@@ -374,7 +380,7 @@ export default function WorkshopPage() {
                 </section>
 
                 {/* Filters Section */}
-                <section className="card" style={{ marginBottom: '2rem', padding: '1.5rem', background: 'var(--card)' }}>
+                <section className="card" style={{ marginBottom: '2rem', padding: '1.5rem', background: 'var(--card)', overflow: 'visible', position: 'relative', zIndex: 100 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Filter size={18} className="text-primary" />
@@ -402,46 +408,126 @@ export default function WorkshopPage() {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', alignItems: 'end' }}>
                         {[
-                            { label: 'Proje', value: filterProje, setter: setFilterProje, options: Array.from(new Set(operations.map(o => o.project_name))), placeholder: 'Tüm Projeler' },
-                            { label: 'Makine (Model)', value: filterMakine, setter: setFilterMakine, options: Array.from(new Set(operations.map(o => `${o.machine_name} (${o.machine_model || '-'})`))), placeholder: 'Tüm Makineler' },
-                            { label: 'Sorumlu', value: filterSorumlu, setter: setFilterSorumlu, options: Array.from(new Set(operations.map(o => o.responsible_person))), placeholder: 'Tüm Personeller' },
-                        ].map((filter, idx) => (
-                            <div key={idx}>
+                            { id: 'proje-dropdown', label: 'Proje', value: filterProje, setter: setFilterProje, options: Array.from(new Set(operations.map(o => o.project_name))), placeholder: 'Tüm Projeler' },
+                            { id: 'makine-dropdown', label: 'Makine (Model)', value: filterMakine, setter: setFilterMakine, options: Array.from(new Set(operations.map(o => `${o.machine_name} (${o.machine_model || '-'})`))), placeholder: 'Tüm Makineler' },
+                            { id: 'sorumlu-dropdown', label: 'Sorumlu', value: filterSorumlu, setter: setFilterSorumlu, options: Array.from(new Set(operations.map(o => o.responsible_person))), placeholder: 'Tüm Personeller' },
+                        ].map((filter) => (
+                            <div key={filter.id}>
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{filter.label}</label>
                                 <div style={{ position: 'relative' }}>
-                                    <select
+                                    <div
                                         style={{
                                             width: '100%',
                                             background: 'var(--secondary)',
                                             border: '1px solid var(--border)',
                                             borderRadius: '10px',
                                             padding: '0.7rem 1rem',
-                                            paddingRight: '2.5rem',
-                                            color: 'var(--foreground)',
-                                            outline: 'none',
+                                            color: filter.value.length > 0 ? 'var(--foreground)' : 'var(--muted-foreground)',
                                             fontSize: '0.95rem',
                                             cursor: 'pointer',
-                                            appearance: 'none',
-                                            transition: 'all 0.2s ease',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            minHeight: '44px',
+                                            border: filter.value.length > 0 ? '1px solid var(--primary)' : '1px solid var(--border)',
+                                            transition: '0.2s'
                                         }}
-                                        value={filter.value}
-                                        onChange={e => filter.setter(e.target.value)}
-                                        onMouseEnter={e => e.target.style.borderColor = 'var(--primary)'}
-                                        onMouseLeave={e => e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const dropdown = document.getElementById(filter.id);
+                                            // Close other dropdowns first
+                                            ['proje-dropdown', 'makine-dropdown', 'sorumlu-dropdown', 'status-dropdown'].forEach(id => {
+                                                if (id !== filter.id) {
+                                                    const other = document.getElementById(id);
+                                                    if (other) other.style.display = 'none';
+                                                }
+                                            });
+                                            if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                                        }}
                                     >
-                                        <option value="" style={{ background: 'var(--card)', color: 'var(--foreground)' }}>{filter.placeholder}</option>
-                                        {filter.options.map(opt => (
-                                            <option key={opt} value={opt} style={{ background: 'var(--card)', color: 'var(--foreground)' }}>{opt}</option>
-                                        ))}
-                                    </select>
-                                    <div style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--muted-foreground)' }}>
-                                        <ChevronRight size={16} style={{ transform: 'rotate(90deg)' }} />
+                                        <span style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {filter.value.length > 0 ? `${filter.value.length} ${filter.label} Seçildi` : filter.placeholder}
+                                        </span>
+                                        <ChevronRight size={14} style={{ transform: 'rotate(90deg)', flexShrink: 0 }} />
+                                    </div>
+                                    <div
+                                        id={filter.id}
+                                        style={{
+                                            position: 'absolute',
+                                            top: '115%',
+                                            left: 0,
+                                            right: 0,
+                                            background: '#18181b',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: '12px',
+                                            padding: '0.5rem',
+                                            zIndex: 2000,
+                                            boxShadow: '0 20px 50px rgba(0,0,0,1)',
+                                            display: 'none',
+                                            maxHeight: '280px',
+                                            overflowY: 'auto'
+                                        }}
+                                    >
+                                        {filter.options.map(opt => {
+                                            const isSelected = filter.value.includes(opt);
+                                            return (
+                                                <div
+                                                    key={opt}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (isSelected) {
+                                                            filter.setter(prev => prev.filter(s => s !== opt));
+                                                        } else {
+                                                            filter.setter(prev => [...prev, opt]);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        padding: '0.6rem 0.75rem',
+                                                        borderRadius: '8px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.75rem',
+                                                        background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                                                        color: isSelected ? 'var(--primary)' : 'var(--foreground)',
+                                                        fontSize: '0.85rem',
+                                                        transition: '0.2s',
+                                                        marginBottom: '2px'
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        width: '16px',
+                                                        height: '16px',
+                                                        border: '2px solid',
+                                                        borderColor: isSelected ? 'var(--primary)' : 'var(--muted-foreground)',
+                                                        borderRadius: '4px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        background: isSelected ? 'var(--primary)' : 'transparent',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        {isSelected && <Check size={12} color="white" />}
+                                                    </div>
+                                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt}</span>
+                                                </div>
+                                            )
+                                        })}
+                                        <div
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                filter.setter([]);
+                                            }}
+                                            style={{ borderTop: '1px solid var(--border)', marginTop: '0.4rem', padding: '0.6rem 1rem', fontSize: '0.75rem', color: '#ef4444', cursor: 'pointer', textAlign: 'center' }}
+                                        >
+                                            {filter.label} Filtresini Temizle
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         ))}
 
-                        {/* Statü Filtresi (Döngü Dışında) */}
+                        {/* Statü Filtresi (Döngü Dışında - Aynı Tasarım) */}
                         <div>
                             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statü</label>
                             <div style={{ position: 'relative' }}>
@@ -459,31 +545,41 @@ export default function WorkshopPage() {
                                         justifyContent: 'space-between',
                                         alignItems: 'center',
                                         minHeight: '44px',
-                                        border: filterStatu.length > 0 ? '1px solid var(--primary)' : '1px solid var(--border)'
+                                        border: filterStatu.length > 0 ? '1px solid var(--primary)' : '1px solid var(--border)',
+                                        transition: '0.2s'
                                     }}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         const dropdown = document.getElementById('status-dropdown');
+                                        // Close other dropdowns
+                                        ['proje-dropdown', 'makine-dropdown', 'sorumlu-dropdown', 'status-dropdown'].forEach(id => {
+                                            if (id !== 'status-dropdown') {
+                                                const other = document.getElementById(id);
+                                                if (other) other.style.display = 'none';
+                                            }
+                                        });
                                         if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
                                     }}
                                 >
                                     <span style={{ fontSize: '0.85rem' }}>{filterStatu.length > 0 ? `${filterStatu.length} Statü Seçildi` : 'Tüm Statüler'}</span>
-                                    <ChevronRight size={16} style={{ transform: 'rotate(90deg)' }} />
+                                    <ChevronRight size={14} style={{ transform: 'rotate(90deg)', flexShrink: 0 }} />
                                 </div>
                                 <div
                                     id="status-dropdown"
                                     style={{
                                         position: 'absolute',
-                                        top: '110%',
+                                        top: '115%',
                                         left: 0,
                                         right: 0,
-                                        background: 'var(--card)',
+                                        background: '#18181b',
                                         border: '1px solid var(--border)',
                                         borderRadius: '12px',
                                         padding: '0.5rem',
-                                        zIndex: 1000,
-                                        boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-                                        display: 'none'
+                                        zIndex: 2000,
+                                        boxShadow: '0 20px 50px rgba(0,0,0,1)',
+                                        display: 'none',
+                                        maxHeight: '280px',
+                                        overflowY: 'auto'
                                     }}
                                 >
                                     {['Bekliyor', 'İşlemde', 'Tamamlandı', 'Durduruldu'].map(status => {
@@ -500,7 +596,7 @@ export default function WorkshopPage() {
                                                     }
                                                 }}
                                                 style={{
-                                                    padding: '0.6rem 1rem',
+                                                    padding: '0.6rem 0.75rem',
                                                     borderRadius: '8px',
                                                     cursor: 'pointer',
                                                     display: 'flex',
@@ -522,7 +618,8 @@ export default function WorkshopPage() {
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    background: isSelected ? 'var(--primary)' : 'transparent'
+                                                    background: isSelected ? 'var(--primary)' : 'transparent',
+                                                    flexShrink: 0
                                                 }}>
                                                     {isSelected && <Check size={12} color="white" />}
                                                 </div>
@@ -537,14 +634,14 @@ export default function WorkshopPage() {
                                         }}
                                         style={{ borderTop: '1px solid var(--border)', marginTop: '0.4rem', padding: '0.6rem 1rem', fontSize: '0.75rem', color: '#ef4444', cursor: 'pointer', textAlign: 'center' }}
                                     >
-                                        Seçimleri Temizle
+                                        Statü Filtresini Temizle
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <button
-                            onClick={() => { setFilterProje(''); setFilterMakine(''); setFilterSorumlu(''); setFilterStatu([]); setSearchTerm(''); }}
+                            onClick={() => { setFilterProje([]); setFilterMakine([]); setFilterSorumlu([]); setFilterStatu([]); setSearchTerm(''); }}
                             className="btn"
                             style={{
                                 padding: '0.7rem 1rem',
