@@ -56,12 +56,13 @@ export function usePermissions() {
             const isAdmin = role?.name === 'Admin'
 
             const getPermissionKey = (path) => {
-                if (path === '/') return 'view_dashboard'
+                if (path === '/' || path.startsWith('/dashboard')) return 'view_dashboard'
                 if (path.startsWith('/projects')) return 'view_projects'
                 if (path.startsWith('/workshop')) return 'view_workshop'
                 if (path.startsWith('/tasks')) return 'view_tasks'
                 if (path.startsWith('/logs')) return 'view_logs'
                 if (path.startsWith('/team')) return 'view_team'
+                if (path.startsWith('/register-staff')) return 'create_staff'
                 return null
             }
 
