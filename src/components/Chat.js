@@ -31,7 +31,7 @@ export default function Chat({ profile }) {
     const fetchMessages = async () => {
         let query = supabase
             .from('chat_messages')
-            .select('*, sender:profiles!sender_id(full_name)')
+            .select('*, sender:profiles!sender_id(full_name, email)')
             .order('created_at', { ascending: true })
 
         if (selectedUser) {
@@ -248,7 +248,7 @@ export default function Chat({ profile }) {
                                         </div>
                                     )}
                                     {messages.map((m, i) => {
-                                        const isMe = m.sender_id === profile.id
+                                        const isMe = m.sender_id === profile.id || m.sender?.email === profile.email
                                         return (
                                             <div key={i} style={{
                                                 display: 'flex', flexDirection: 'column',
