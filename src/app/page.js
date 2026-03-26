@@ -202,19 +202,37 @@ export default function Home() {
                         marginBottom: '0.4rem',
                         background: notif.is_read ? 'transparent' : 'rgba(59, 130, 246, 0.05)',
                         border: notif.is_read ? '1px solid transparent' : '1px solid rgba(59, 130, 246, 0.1)',
-                        transition: 'background 0.2s'
+                        transition: 'background 0.2s',
+                        display: 'flex',
+                        gap: '0.75rem',
+                        alignItems: 'flex-start'
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: notif.is_read ? 'var(--foreground)' : 'var(--primary)' }}>
-                            {notif.title}
-                          </span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
-                            {new Date(notif.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: notif.type === 'task' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.05)',
+                          color: notif.type === 'task' ? 'var(--primary)' : 'var(--muted-foreground)',
+                          flexShrink: 0
+                        }}>
+                          {notif.type === 'task' ? <Clock size={16} /> : <Bell size={16} />}
                         </div>
-                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--foreground)', lineHeight: 1.4 }}>
-                          {notif.message}
-                        </p>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: notif.is_read ? 'var(--foreground)' : 'var(--primary)' }}>
+                              {notif.title || 'Yeni Bildirim'}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
+                              {notif.created_at ? new Date(notif.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--foreground)', lineHeight: 1.4, opacity: notif.is_read ? 0.7 : 1 }}>
+                            {notif.message || 'Bir bildirim aldınız.'}
+                          </p>
+                        </div>
                       </div>
                     ))
                   )}
@@ -301,6 +319,6 @@ export default function Home() {
         isAdmin={isAdmin}
         isMock={false}
       />
-    </div>
+    </div >
   )
 }
