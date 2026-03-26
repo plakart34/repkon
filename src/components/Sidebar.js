@@ -83,10 +83,10 @@ export default function Sidebar({ profile }) {
             const { error: authError } = await supabase.auth.updateUser({ password: newPassword })
             if (authError) throw authError
 
-            // 2. Profiles tablosundaki temporary_password alanını güncelle
+            // 2. Profiles tablosundaki password alanını güncelle
             const { error: profileError } = await supabase
                 .from('profiles')
-                .update({ temporary_password: newPassword })
+                .update({ password: newPassword })
                 .eq('id', profile.id)
 
             if (profileError) throw profileError
