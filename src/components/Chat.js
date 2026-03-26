@@ -31,7 +31,7 @@ export default function Chat({ profile }) {
     const fetchMessages = async () => {
         let query = supabase
             .from('chat_messages')
-            .select('*, profiles!sender_id(full_name)')
+            .select('*, sender:profiles!sender_id(full_name)')
             .order('created_at', { ascending: true })
 
         if (selectedUser) {
@@ -256,7 +256,7 @@ export default function Chat({ profile }) {
                                                 animation: `slide-up 0.3s ease-out forwards`
                                             }}>
                                                 {!isMe && !selectedUser && (
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '0.4rem', marginLeft: '0.5rem' }}>{m.profiles?.full_name}</span>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '0.4rem', marginLeft: '0.5rem' }}>{m.sender?.full_name}</span>
                                                 )}
                                                 <div style={{
                                                     maxWidth: '85%',

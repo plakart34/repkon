@@ -22,7 +22,7 @@ import {
 export default function LogsPage() {
     const { profile, loading: authLoading } = usePermissions()
     const [logs, setLogs] = useState([])
-    const isAdmin = profile?.roles?.name === 'Admin'
+    const isAdmin = profile?.roles?.name === 'Admin' || profile?.role_id === 1 || profile?.role_id === "1"
 
     const fetchLogs = async () => {
         if (!profile) return
