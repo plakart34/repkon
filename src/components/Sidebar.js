@@ -20,6 +20,8 @@ import {
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Chat from './Chat'
+import { createPortal } from 'react-dom'
+import { KeyRound, X, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function Sidebar({ profile }) {
     const pathname = usePathname()
@@ -29,6 +31,11 @@ export default function Sidebar({ profile }) {
     const [projects, setProjects] = useState([])
     const [departments, setDepartments] = useState([])
     const [theme, setTheme] = useState('dark')
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [isUpdating, setIsUpdating] = useState(false)
+    const [status, setStatus] = useState(null) // 'success' | 'error'
 
     const fetchData = async () => {
         const { data: projData } = await supabase.from('projects').select('*').order('name')
@@ -55,6 +62,47 @@ export default function Sidebar({ profile }) {
     const handleLogout = async () => {
         await supabase.auth.signOut()
         window.location.href = '/login'
+    }
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault()
+        if (newPassword !== confirmPassword) {
+            setStatus({ type: 'error', message: 'Şifreler eşleşmiyor!' })
+            return
+        }
+        if (newPassword.length < 6) {
+            setStatus({ type: 'error', message: 'Şifre en az 6 karakter olmalıdır!' })
+            return
+        }
+
+        setIsUpdating(true)
+        setStatus(null)
+
+        try {
+            // 1. Auth Şifresini Güncelle
+            const { error: authError } = await supabase.auth.updateUser({ password: newPassword })
+            if (authError) throw authError
+
+            // 2. Profiles tablosundaki temporary_password alanını güncelle
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({ temporary_password: newPassword })
+                .eq('id', profile.id)
+
+            if (profileError) throw profileError
+
+            setStatus({ type: 'success', message: 'Şifreniz başarıyla güncellendi.' })
+            setNewPassword('')
+            setConfirmPassword('')
+            setTimeout(() => {
+                setIsPasswordModalOpen(false)
+                setStatus(null)
+            }, 2000)
+        } catch (err) {
+            setStatus({ type: 'error', message: err.message })
+        } finally {
+            setIsUpdating(false)
+        }
     }
 
     const permissions = profile?.roles?.permissions || []
@@ -252,7 +300,12 @@ export default function Sidebar({ profile }) {
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.25rem' }}>
+                    <div
+                        onClick={() => setIsPasswordModalOpen(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.25rem', cursor: 'pointer', borderRadius: 'var(--radius)', transition: 'background 0.2s' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
                         <div style={{ width: '36px', height: '36px', minWidth: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: 'white' }}>
                             {profile?.full_name?.charAt(0) || 'U'}
                         </div>
@@ -260,13 +313,81 @@ export default function Sidebar({ profile }) {
                             <p style={{ fontSize: '0.875rem', fontWeight: 600, margin: 0, whiteSpace: 'nowrap' }}>{profile?.full_name || 'Kullanıcı'}</p>
                             <p style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', margin: 0, whiteSpace: 'nowrap' }}>{profile?.roles?.name || 'Üye'}</p>
                         </div>
-                        <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', padding: '0.5rem' }} title="Çıkış Yap">
-                            <LogOut size={18} />
-                        </button>
                     </div>
+                    <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', padding: '0.5rem' }} title="Çıkış Yap">
+                        <LogOut size={18} />
+                    </button>
                 </div>
             </aside>
             {canSee('/chat') || profile?.roles?.permissions?.includes('view_chat') ? <Chat profile={profile} /> : null}
+
+            {isPasswordModalOpen && typeof document !== 'undefined' && createPortal(
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, backdropFilter: 'blur(10px)' }}>
+                    <div className="card animate-fade-in" style={{ width: '400px', padding: '2.5rem', background: 'var(--card)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '0.5rem', borderRadius: '8px', color: '#3b82f6' }}>
+                                    <KeyRound size={20} />
+                                </div>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Şifre Değiştir</h3>
+                            </div>
+                            <button onClick={() => { setIsPasswordModalOpen(false); setStatus(null); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleChangePassword}>
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yeni Şifre</label>
+                                <input
+                                    type="password"
+                                    required
+                                    style={{ width: '100%', background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', color: 'white' }}
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                />
+                            </div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yeni Şifre (Tekrar)</label>
+                                <input
+                                    type="password"
+                                    required
+                                    style={{ width: '100%', background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', color: 'white' }}
+                                    value={confirmPassword}
+                                    onChange={e => setConfirmPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                />
+                            </div>
+
+                            {status && (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.75rem',
+                                    padding: '0.75rem',
+                                    borderRadius: '8px',
+                                    marginBottom: '1.5rem',
+                                    fontSize: '0.85rem',
+                                    background: status.type === 'success' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                    color: status.type === 'success' ? '#4ade80' : '#ef4444'
+                                }}>
+                                    {status.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                                    {status.message}
+                                </div>
+                            )}
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="btn" style={{ background: 'var(--secondary)' }}>İptal</button>
+                                <button type="submit" disabled={isUpdating} className="btn btn-primary">
+                                    {isUpdating ? 'Güncelleniyor...' : 'Şifreyi Güncelle'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
+            )}
         </>
     )
 }
