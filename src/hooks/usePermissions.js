@@ -36,7 +36,8 @@ export function usePermissions() {
 
             if (profileError || !profileData) {
                 console.error('Profile fetch error:', profileError)
-                // If profile doesn't exist, we can't determine permissions
+                // If profile doesn't exist, log out the phantom session
+                await supabase.auth.signOut()
                 if (pathname !== '/login') router.replace('/login')
                 setLoading(false)
                 return

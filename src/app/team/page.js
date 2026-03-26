@@ -112,8 +112,9 @@ function TeamContent() {
 
                 if (authError) throw authError
 
-                // 2. Ardından Profiles Tablosuna Ekle (ID'yi Auth'dan alarak)
-                const { error: profileError } = await supabase.from('profiles').insert([{
+                // 2. Ardından Profiles Tablosunu GÜNCELLE (Trigger zaten satırı oluşturdu)
+                // UPSERT kullanarak hem yeni kaydı hem de mevcut kaydı garantiye alıyoruz
+                const { error: profileError } = await supabase.from('profiles').upsert([{
                     ...data,
                     id: authData.user.id
                 }])
