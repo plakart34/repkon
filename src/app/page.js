@@ -44,19 +44,19 @@ export default function Home() {
       if (projError) throw projError
       setProjects(projData || [])
 
-      // 2. Fetch Logs for notifications (system_logs table)
-      const { data: logData, error: logError } = await supabase
-        .from('system_logs')
+      // 2. Fetch Notifications for the current user
+      const { data: notifData, error: notifError } = await supabase
+        .from('notifications')
         .select('*')
+        .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
-        .limit(15)
+        .limit(10)
 
-      if (logError) throw logError
+      if (notifError) throw notifError
 
-      const lastRead = localStorage.getItem('rmk_notifications_read') || 0
-      const unread = (logData || []).filter(n => new Date(n.created_at).getTime() > lastRead)
+      const unread = (notifData || []).filter(n => !n.is_read)
 
-      setNotifications(logData || [])
+      setNotifications(notifData || [])
       setUnreadCount(unread.length)
 
     } catch (err) {
@@ -183,8 +183,8 @@ export default function Home() {
                   <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Bell size={16} color="var(--primary)" /> Bildirimler
                   </h3>
-                  <a href="/logs" style={{ fontSize: '0.75rem', color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                    Tümünü Gör <History size={12} />
+                  <a href="/workshop" style={{ fontSize: '0.75rem', color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                    Tümünü Gör <ChevronRight size={12} />
                   </a>
                 </div>
 
@@ -194,22 +194,25 @@ export default function Home() {
                       Henüz bildirim yok.
                     </div>
                   ) : (
-                    notifications.map(log => (
-                      <div key={log.id} style={{
+                    notifications.map(notif => (
+                      <div key={notif.id} style={{
                         padding: '0.75rem',
                         borderRadius: '8px',
-                        marginBottom: '0.25rem',
-                        background: 'transparent',
+                        marginBottom: '0.4rem',
+                        background: notif.is_read ? 'transparent' : 'rgba(59, 130, 246, 0.05)',
+                        border: notif.is_read ? '1px solid transparent' : '1px solid rgba(59, 130, 246, 0.1)',
                         transition: 'background 0.2s'
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{log.user_full_name || 'Sistem'}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: notif.is_read ? 'var(--foreground)' : 'var(--primary)' }}>
+                            {notif.title}
+                          </span>
                           <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
-                            {new Date(log.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(notif.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.8rem', color: 'var(--foreground)', lineHeight: 1.4 }}>
-                          <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{log.action}</span>: {log.details}
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--foreground)', lineHeight: 1.4 }}>
+                          {notif.message}
                         </p>
                       </div>
                     ))
