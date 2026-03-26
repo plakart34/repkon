@@ -15,7 +15,8 @@ import {
   Truck,
   Bell,
   MessageSquare,
-  History
+  History,
+  ChevronRight
 } from 'lucide-react'
 
 export default function Home() {
