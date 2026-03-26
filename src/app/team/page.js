@@ -246,7 +246,7 @@ function TeamContent() {
                         ) : (
                             departments.map(dept => (
                                 <div
-                                    key={dept.id}
+                                    key={dept.name}
                                     className="card folder-card"
                                     style={{ cursor: 'pointer', textAlign: 'center', padding: '2.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.3s', position: 'relative' }}
                                     onClick={() => setSelectedDept(dept.name)}
