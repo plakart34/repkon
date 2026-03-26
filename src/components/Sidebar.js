@@ -266,7 +266,7 @@ export default function Sidebar({ profile }) {
                     </div>
                 </div>
             </aside>
-            <Chat profile={profile} />
+            {canSee('/chat') || profile?.roles?.permissions?.includes('view_chat') ? <Chat profile={profile} /> : null}
         </>
     )
 }

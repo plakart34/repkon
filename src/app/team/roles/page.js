@@ -31,7 +31,15 @@ export default function RolesPage() {
             groupName: 'Genel & Dashboard',
             permissions: [
                 { path: 'view_dashboard', name: 'Dashboard Görüntüleme' },
-                { path: 'view_logs', name: 'Sistem Logları Görüntüleme' }
+                { path: 'view_logs', name: 'Sistem Logları Görüntüleme' },
+                { path: 'hide_logs', name: 'Log Kayıtlarını Gizleme/Gösterme' }
+            ]
+        },
+        {
+            groupName: 'Sohbet & İletişim',
+            permissions: [
+                { path: 'view_chat', name: 'Ekip Sohbetini Görüntüleme & Yazma' },
+                { path: 'delete_chat_message', name: 'Sohbet Mesajlarını Silme (Admin)' }
             ]
         },
         {
@@ -71,6 +79,7 @@ export default function RolesPage() {
                 { path: 'view_team', name: 'Ekip Görüntüleme' },
                 { path: 'manage_team', name: 'Personel Özelliklerini Düzenleme' },
                 { path: 'create_staff', name: 'Yeni Personel (Görevli) Ekleme' },
+                { path: 'delete_staff', name: 'Personel Kaydını Silme' },
                 { path: 'manage_roles', name: 'Rol ve Sayfa Yetkisi Düzenleme' }
             ]
         }

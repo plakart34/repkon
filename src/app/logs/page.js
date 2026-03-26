@@ -163,7 +163,7 @@ export default function LogsPage() {
                                                 </div>
 
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                    {isAdmin && (
+                                                    {(isAdmin || profile?.roles?.permissions?.includes('hide_logs')) && (
                                                         <button
                                                             onClick={() => toggleVisibility(log)}
                                                             title={log.hidden ? "Görünür Yap" : "Gizle (Sadece Admin Görebilir)"}
