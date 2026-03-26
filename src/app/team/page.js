@@ -84,24 +84,52 @@ function TeamContent() {
 
     const handleRegister = async (e) => {
         e.preventDefault()
-        const data = {
-            ...formData,
-            department: selectedDept,
-            role_id: formData.role_id === '' ? null : formData.role_id
-        }
+        setLoading(true)
 
-        if (editingStaff) {
-            const { error } = await supabase.from('profiles').update(data).eq('id', editingStaff.id)
-            if (error) alert(error.message)
-        } else {
-            const { error } = await supabase.from('profiles').insert([data])
-            if (error) alert(error.message)
-        }
+        try {
+            const data = {
+                ...formData,
+                department: selectedDept,
+                role_id: formData.role_id === '' ? null : formData.role_id
+            }
 
-        fetchData()
-        setIsStaffModalOpen(false)
-        setEditingStaff(null)
-        setFormData({ full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false })
+            if (editingStaff) {
+                const { error } = await supabase.from('profiles').update(data).eq('id', editingStaff.id)
+                if (error) throw error
+            } else {
+                // 1. Önce Supabase Auth'a Kaydet
+                const { data: authData, error: authError } = await supabase.auth.signUp({
+                    email: formData.email,
+                    password: formData.password,
+                    options: {
+                        data: {
+                            full_name: formData.full_name,
+                            role_id: formData.role_id
+                        }
+                    }
+                })
+
+                if (authError) throw authError
+
+                // 2. Ardından Profiles Tablosuna Ekle (ID'yi Auth'dan alarak)
+                const { error: profileError } = await supabase.from('profiles').insert([{
+                    ...data,
+                    id: authData.user.id
+                }])
+
+                if (profileError) throw profileError
+            }
+
+            fetchData()
+            setIsStaffModalOpen(false)
+            setEditingStaff(null)
+            setFormData({ full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false })
+            alert('Personel başarıyla kaydedildi ve giriş yetkisi verildi.')
+        } catch (error) {
+            alert('Hata: ' + error.message)
+        } finally {
+            setLoading(false)
+        }
     }
 
     const handleEditStaff = (staff) => {

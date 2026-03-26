@@ -62,6 +62,7 @@ export default function Sidebar({ profile }) {
 
     const permissionMap = {
         '/': 'view_dashboard',
+        '/dashboard': 'view_dashboard',
         '/projects': 'view_projects',
         '/workshop': 'view_workshop',
         '/tasks': 'view_tasks',
@@ -72,7 +73,8 @@ export default function Sidebar({ profile }) {
     const canSee = (path) => isAdmin || permissions.includes(permissionMap[path])
 
     const navItems = [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Giriş / Projeler', path: '/', icon: Briefcase },
+        { name: 'Analizler (Dashboard)', path: '/dashboard', icon: LayoutDashboard },
         {
             name: 'Projeler',
             path: '/projects',
