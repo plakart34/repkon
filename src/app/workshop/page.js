@@ -208,14 +208,35 @@ export default function WorkshopPage() {
             parent_id: logData.predecessorId || null // Ensure null if empty
         }
 
+        let nextOrderId = '';
+        if (!selectedOp) {
+            const { count } = await supabase.from('operations').select('*', { count: 'exact', head: true })
+            nextOrderId = `RMK-${1001 + (count || 0)}`
+        }
+
         if (selectedOp) {
             const { error } = await supabase.from('operations').update(opData).eq('id', selectedOp.id)
             if (error) alert(error.message)
         } else {
-            const { count } = await supabase.from('operations').select('*', { count: 'exact', head: true })
-            const nextId = `RMK-${1001 + (count || 0)}`
-            const { error } = await supabase.from('operations').insert({ ...opData, order_id: nextId })
-            if (error) alert(error.message)
+            const { error: insertError } = await supabase.from('operations').insert({ ...opData, order_id: nextOrderId })
+
+            if (insertError) {
+                alert(insertError.message)
+            } else {
+                // YENİ AKSİYON BAŞLATILDIĞINDA BİLDİRİM GÖNDER
+                if (logData.responsiblePersonId) {
+                    await supabase
+                        .from('notifications')
+                        .insert([{
+                            user_id: logData.responsiblePersonId,
+                            title: 'Yeni İş Atandı 🔔',
+                            message: `${project?.name || 'Proje'} - ${machine?.name || 'Makine'} üzerinde "${logData.process}" görevi size atandı.`,
+                            type: 'task',
+                            action_link: '/workshop',
+                            created_at: new Date().toISOString()
+                        }])
+                }
+            }
         }
 
         fetchData()
