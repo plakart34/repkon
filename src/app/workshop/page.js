@@ -60,6 +60,8 @@ export default function WorkshopPage() {
     const [isLogModalOpen, setIsLogModalOpen] = useState(false)
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
     const [isTimelineModalOpen, setIsTimelineModalOpen] = useState(false)
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+    const [deletingOpId, setDeletingOpId] = useState(null)
 
     const [selectedOp, setSelectedOp] = useState(null)
     const [statusUpdate, setStatusUpdate] = useState({ status: '', note: '' })
@@ -223,6 +225,18 @@ export default function WorkshopPage() {
             if (insertError) {
                 alert(insertError.message)
             } else {
+                // SİSTEM LOGU EKLE (YENİ AKSİYON)
+                await supabase.from('system_logs').insert([{
+                    order_id: nextOrderId,
+                    user_full_name: profile.full_name,
+                    user_dept: profile.department,
+                    action: 'Aksiyon Başlatıldı',
+                    details: `${opData.project_name} - ${opData.machine_name} (${opData.machine_model}): ${opData.process}`,
+                    project_name: opData.project_name,
+                    machine_name: opData.machine_name,
+                    created_at: new Date().toISOString()
+                }])
+
                 // YENİ AKSİYON BAŞLATILDIĞINDA BİLDİRİM GÖNDER
                 if (logData.responsiblePersonId) {
                     await supabase
@@ -281,12 +295,35 @@ export default function WorkshopPage() {
         return { color: 'var(--foreground)', className: '' };
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Bu aksiyonu silmek istediğinize emin misiniz?')) {
-            const { error } = await supabase.from('operations').delete().eq('id', id)
-            if (error) alert(error.message)
-            fetchData()
+    const handleDeleteClick = (id) => {
+        setDeletingOpId(id);
+        setIsDeleteModalOpen(true);
+    }
+
+    const confirmDelete = async () => {
+        if (!deletingOpId) return;
+        const opToDelete = operations.find(o => o.id === deletingOpId);
+
+        const { error } = await supabase.from('operations').delete().eq('id', deletingOpId)
+        if (error) {
+            alert(error.message)
+        } else {
+            // SİSTEM LOGU EKLE (SİLME)
+            await supabase.from('system_logs').insert([{
+                order_id: opToDelete?.order_id,
+                user_full_name: profile.full_name,
+                user_dept: profile.department,
+                action: 'Aksiyon Silindi',
+                details: `${opToDelete?.project_name} - ${opToDelete?.machine_name}: "${opToDelete?.process}" aksiyonu silindi.`,
+                project_name: opToDelete?.project_name,
+                machine_name: opToDelete?.machine_name,
+                created_at: new Date().toISOString()
+            }])
         }
+
+        setIsDeleteModalOpen(false);
+        setDeletingOpId(null);
+        fetchData()
     }
 
     const handleStatusChange = async (e) => {
@@ -1093,7 +1130,7 @@ export default function WorkshopPage() {
                                 </button>
                                 <div style={{ height: '1px', background: 'var(--border)', margin: '0.3rem 0' }} />
                                 <button
-                                    onClick={() => { handleDelete(op.id); setActiveOpMenuId(null); }}
+                                    onClick={() => { handleDeleteClick(op.id); setActiveOpMenuId(null); }}
                                     style={{ ...itemStyle, color: '#ef4444' }}
                                     className="nav-item-mini"
                                 >
@@ -1102,6 +1139,25 @@ export default function WorkshopPage() {
                             </>
                         );
                     })()}
+                </div>,
+                document.body
+            )}
+
+            {isDeleteModalOpen && typeof document !== 'undefined' && createPortal(
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, backdropFilter: 'blur(10px)' }}>
+                    <div className="card animate-fade-in" style={{ width: '400px', padding: '2.5rem', background: 'var(--card)', textAlign: 'center' }}>
+                        <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                            <Trash2 size={30} />
+                        </div>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Emin misiniz?</h3>
+                        <p style={{ color: 'var(--muted-foreground)', marginBottom: '2rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                            Bu aksiyonu (<strong>{operations.find(o => o.id === deletingOpId)?.order_id}</strong>) kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <button onClick={() => { setIsDeleteModalOpen(false); setDeletingOpId(null); }} className="btn" style={{ background: 'var(--secondary)' }}>Vazgeç</button>
+                            <button onClick={confirmDelete} className="btn" style={{ background: '#ef4444', color: 'white' }}>Evet, Sil</button>
+                        </div>
+                    </div>
                 </div>,
                 document.body
             )}
