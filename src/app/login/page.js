@@ -88,14 +88,6 @@ export default function Login() {
                     </button>
                 </form>
 
-                <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-                    <a
-                        href="/admin/bootstrap"
-                        style={{ fontSize: '0.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}
-                    >
-                        İlk Kez Mi Giriyorsunuz? Admin Kurulumu Yapın
-                    </a>
-                </div>
 
                 <p style={{ marginTop: '2.5rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                     Varsayılan şifre ile giriş yaptıktan sonra şifrenizi profil ayarlarından güncelleyebilirsiniz.
