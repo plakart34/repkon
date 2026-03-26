@@ -277,7 +277,8 @@ export default function Chat({ profile }) {
                                                     marginTop: '0.5rem', fontWeight: 600,
                                                     display: 'flex', alignItems: 'center', gap: '0.4rem'
                                                 }}>
-                                                    {new Date(m.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                                    <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: '0.2rem' }}>{m.sender?.full_name}</span>
+                                                    • {new Date(m.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                                                     {isMe && <span style={{ color: '#4ade80', fontSize: '10px' }}>✓✓</span>}
                                                 </div>
                                             </div>
