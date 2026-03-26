@@ -189,7 +189,7 @@ export default function WorkshopPage() {
             machine_id: selectedMachineId,
             machine_name: machine?.name,
             machine_model: machine?.model,
-            bom_id: selectedBomId,
+            bom_id: selectedBomId || null, // Ensure null if empty
             bom_code: bom?.code,
             bom_name: bom?.name,
             name: logData.process,
@@ -205,7 +205,7 @@ export default function WorkshopPage() {
                 timestamp: new Date().toISOString(),
                 user: profile.full_name
             }],
-            parent_id: logData.predecessorId || null
+            parent_id: logData.predecessorId || null // Ensure null if empty
         }
 
         if (selectedOp) {
