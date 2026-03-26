@@ -42,6 +42,7 @@ function TeamContent() {
     const [editingDept, setEditingDept] = useState(null)
     const [editingStaff, setEditingStaff] = useState(null)
     const [newDeptName, setNewDeptName] = useState('')
+    const [loading, setLoading] = useState(false)
 
     // Registration Form
     const [formData, setFormData] = useState({
