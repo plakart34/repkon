@@ -50,6 +50,13 @@ export default function WorkshopPage() {
     const { profile, loading: authLoading } = usePermissions()
     const isAdmin = profile?.roles?.name === 'Admin'
     const userPermissions = profile?.roles?.permissions || []
+
+    const canUpdateStatus = (op) => {
+        if (!op) return false;
+        if (isAdmin) return true;
+        if (userPermissions.includes('update_status')) return true;
+        return op.responsible_person_id === profile?.id;
+    };
     const [projects, setProjects] = useState([])
     const [selectedProjectId, setSelectedProjectId] = useState('')
     const [timelineData, setTimelineData] = useState([])
@@ -906,10 +913,13 @@ export default function WorkshopPage() {
                                         <th style={{ padding: '0.75rem', width: '40px' }}>
                                             <div
                                                 onClick={() => {
-                                                    if (selectedOpIds.length === sortedOperations.length) {
+                                                    const updatableOps = sortedOperations.filter(canUpdateStatus);
+                                                    if (updatableOps.length === 0) return;
+
+                                                    if (selectedOpIds.length === updatableOps.length) {
                                                         setSelectedOpIds([])
                                                     } else {
-                                                        setSelectedOpIds(sortedOperations.map(o => o.id))
+                                                        setSelectedOpIds(updatableOps.map(o => o.id))
                                                     }
                                                 }}
                                                 style={{ cursor: 'pointer', color: 'var(--primary)' }}
@@ -966,14 +976,21 @@ export default function WorkshopPage() {
                                                 <td style={{ padding: '0.75rem' }}>
                                                     <div
                                                         onClick={(e) => {
+                                                            if (!canUpdateStatus(op)) return;
                                                             e.stopPropagation()
                                                             setSelectedOpIds(prev =>
                                                                 prev.includes(op.id) ? prev.filter(id => id !== op.id) : [...prev, op.id]
                                                             )
                                                         }}
-                                                        style={{ cursor: 'pointer', color: selectedOpIds.includes(op.id) ? 'var(--primary)' : 'var(--muted-foreground)' }}
+                                                        style={{
+                                                            cursor: canUpdateStatus(op) ? 'pointer' : 'not-allowed',
+                                                            color: selectedOpIds.includes(op.id) ? 'var(--primary)' : 'var(--muted-foreground)',
+                                                            opacity: canUpdateStatus(op) ? 1 : 0.2
+                                                        }}
                                                     >
-                                                        {selectedOpIds.includes(op.id) ? <CheckSquare size={18} /> : <Square size={18} />}
+                                                        {canUpdateStatus(op) ? (
+                                                            selectedOpIds.includes(op.id) ? <CheckSquare size={18} /> : <Square size={18} />
+                                                        ) : null}
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: '0.75rem' }}>
