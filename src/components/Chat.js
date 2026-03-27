@@ -13,6 +13,7 @@ export default function Chat({ profile }) {
     const [users, setUsers] = useState([])
     const [searchTerm, setSearchTerm] = useState('')
     const [unreadCount, setUnreadCount] = useState(0)
+    const [unreadUsers, setUnreadUsers] = useState([]) // TRACK UNREAD USER IDs
     const [lastReadTime, setLastReadTime] = useState(Date.now())
     const messagesEndRef = useRef(null)
     const notificationSound = useRef(null)
@@ -72,6 +73,11 @@ export default function Chat({ profile }) {
                         notificationSound.current.play().catch(() => { })
                     }
                     if (!isOpen) setUnreadCount(prev => prev + 1)
+
+                    // IF IT'S A PRIVATE MESSAGE AND THAT USER ISN'T SELECTED, ADD TO UNREAD USERS
+                    if (payload.new.receiver_id && (!selectedUser || selectedUser.id !== payload.new.sender_id)) {
+                        setUnreadUsers(prev => Array.from(new Set([...prev, payload.new.sender_id])))
+                    }
                 }
                 if (isOpen) fetchMessages()
             })
@@ -94,6 +100,10 @@ export default function Chat({ profile }) {
 
     useEffect(() => {
         if (isOpen) fetchMessages()
+        // CLEAR UNREAD FLAG FOR SELECTED USER
+        if (selectedUser) {
+            setUnreadUsers(prev => prev.filter(id => id !== selectedUser.id))
+        }
     }, [selectedUser])
 
     const handleSend = async (e) => {
@@ -346,26 +356,35 @@ export default function Chat({ profile }) {
                                         <button onClick={scrollDown} style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(30,30,30,0.85)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronDown size={16} /></button>
                                     </div>
 
-                                    {filteredUsers.map(user => (
-                                        <div
-                                            key={user.id}
-                                            onClick={() => setSelectedUser(user)}
-                                            style={{
-                                                padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
-                                                cursor: 'pointer', borderRadius: '1rem', transition: 'all 0.2s'
-                                            }}
-                                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                        >
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'white' }}>
-                                                {user.full_name?.charAt(0)}
+                                    {filteredUsers.map(user => {
+                                        const isUnread = unreadUsers.includes(user.id)
+                                        return (
+                                            <div
+                                                key={user.id}
+                                                onClick={() => setSelectedUser(user)}
+                                                style={{
+                                                    padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                                    cursor: 'pointer', borderRadius: '1rem', transition: 'all 0.2s',
+                                                    background: isUnread ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                                                    borderLeft: isUnread ? '3px solid #ef4444' : '3px solid transparent',
+                                                    boxShadow: isUnread ? '0 0 15px rgba(239, 68, 68, 0.05)' : 'none'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.background = isUnread ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255,255,255,0.04)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = isUnread ? 'rgba(239, 68, 68, 0.08)' : 'transparent'}
+                                            >
+                                                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: isUnread ? '#ef4444' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'white' }}>
+                                                    {user.full_name?.charAt(0)}
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isUnread ? '#ef4444' : 'white' }}>
+                                                        {user.full_name}
+                                                        {isUnread && <span style={{ marginLeft: '8px', width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px #ef4444' }} />}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.7rem', color: isUnread ? 'rgba(239,68,68,0.6)' : 'rgba(255,255,255,0.4)' }}>{user.department || 'Operasyon'}</div>
+                                                </div>
                                             </div>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'white' }}>{user.full_name}</div>
-                                                <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)' }}>{user.department || 'Operasyon'}</div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             </div>
                         )}
