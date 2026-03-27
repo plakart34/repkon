@@ -18,6 +18,9 @@ export default function Chat({ profile }) {
     const messagesEndRef = useRef(null)
     const notificationSound = useRef(null)
     const scrollRef = useRef(null)
+    // Refs to avoid stale closures in realtime callbacks
+    const selectedUserRef = useRef(null)
+    const isOpenRef = useRef(false)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -30,6 +33,10 @@ export default function Chat({ profile }) {
     const scrollDown = () => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
+
+    // Keep refs in sync with state
+    useEffect(() => { selectedUserRef.current = selectedUser }, [selectedUser])
+    useEffect(() => { isOpenRef.current = isOpen }, [isOpen])
 
     const fetchUsers = async () => {
         const { data } = await supabase
@@ -57,29 +64,43 @@ export default function Chat({ profile }) {
         if (!error) setMessages(data || [])
     }
 
+    // Global realtime subscription — always active
     useEffect(() => {
         fetchUsers()
         fetchMessages()
 
         const channel = supabase
-            .channel('chat_notifications')
+            .channel('chat_realtime_global')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
                 const isForMe = !payload.new.receiver_id || payload.new.receiver_id === profile.id
                 const isFromMe = payload.new.sender_id === profile.id
+                const currentSelectedUser = selectedUserRef.current
+                const currentIsOpen = isOpenRef.current
 
                 if (isForMe && !isFromMe) {
                     if (notificationSound.current) {
                         notificationSound.current.currentTime = 0
                         notificationSound.current.play().catch(() => { })
                     }
-                    if (!isOpen) setUnreadCount(prev => prev + 1)
+                    if (!currentIsOpen) setUnreadCount(prev => prev + 1)
 
-                    // IF IT'S A PRIVATE MESSAGE AND THAT USER ISN'T SELECTED, ADD TO UNREAD USERS
-                    if (payload.new.receiver_id && (!selectedUser || selectedUser.id !== payload.new.sender_id)) {
+                    // Highlight sender in contacts list if it's a private message
+                    if (payload.new.receiver_id && (!currentSelectedUser || currentSelectedUser.id !== payload.new.sender_id)) {
                         setUnreadUsers(prev => Array.from(new Set([...prev, payload.new.sender_id])))
                     }
                 }
-                if (isOpen) fetchMessages()
+
+                // ALWAYS refresh messages if the message belongs to the current conversation
+                const isCurrentConversation =
+                    (!payload.new.receiver_id && !currentSelectedUser) || // Genel kanal
+                    (payload.new.receiver_id && currentSelectedUser && (
+                        (payload.new.sender_id === currentSelectedUser.id && payload.new.receiver_id === profile.id) ||
+                        (payload.new.sender_id === profile.id && payload.new.receiver_id === currentSelectedUser.id)
+                    ))
+
+                if (isCurrentConversation) {
+                    fetchMessages()
+                }
             })
             .subscribe()
 
@@ -254,34 +275,6 @@ export default function Chat({ profile }) {
                     <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                         {(selectedUser || activeTab === 'genel') ? (
                             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-                                {/* Scroll Buttons Layer */}
-                                <div style={{
-                                    position: 'absolute', right: '1.25rem', bottom: '1.5rem',
-                                    display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100
-                                }}>
-                                    <button
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); scrollUp(); }}
-                                        style={{
-                                            width: '32px', height: '32px', borderRadius: '8px',
-                                            background: 'rgba(30,30,30,0.85)', backdropFilter: 'blur(10px)',
-                                            border: '1px solid rgba(255,255,255,0.1)', color: 'white',
-                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                        }}
-                                    >
-                                        <ChevronUp size={16} />
-                                    </button>
-                                    <button
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); scrollDown(); }}
-                                        style={{
-                                            width: '32px', height: '32px', borderRadius: '8px',
-                                            background: 'rgba(30,30,30,0.85)', backdropFilter: 'blur(10px)',
-                                            border: '1px solid rgba(255,255,255,0.1)', color: 'white',
-                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                        }}
-                                    >
-                                        <ChevronDown size={16} />
-                                    </button>
-                                </div>
 
                                 <div
                                     ref={scrollRef}
@@ -347,14 +340,6 @@ export default function Chat({ profile }) {
                                     ref={scrollRef}
                                     style={{ flex: 1, overflowY: 'auto', padding: '0 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}
                                 >
-                                    {/* Contacts Scroll Buttons */}
-                                    <div style={{
-                                        position: 'absolute', right: '1.25rem', bottom: '1.25rem',
-                                        display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100
-                                    }}>
-                                        <button onClick={scrollUp} style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(30,30,30,0.85)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronUp size={16} /></button>
-                                        <button onClick={scrollDown} style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(30,30,30,0.85)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronDown size={16} /></button>
-                                    </div>
 
                                     {filteredUsers.map(user => {
                                         const isUnread = unreadUsers.includes(user.id)
