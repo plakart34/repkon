@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Send, X, MessageSquare, User, Users, ChevronLeft, Search, Circle, Pin, Paperclip, Smile, ChevronUp, ChevronDown } from 'lucide-react'
+import { Send, X, MessageSquare, User, Users, ChevronLeft, Search, Circle, Pin, Paperclip, Smile, ChevronUp, ChevronDown, Trash2 } from 'lucide-react'
 
 export default function Chat({ profile }) {
     const [isOpen, setIsOpen] = useState(false)
@@ -98,9 +98,12 @@ export default function Chat({ profile }) {
                         (payload.new.sender_id === profile.id && payload.new.receiver_id === currentSelectedUser.id)
                     ))
 
-                if (isCurrentConversation) {
+                if (isCurrentConversation && payload.eventType === 'INSERT') {
                     fetchMessages()
                 }
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, (payload) => {
+                setMessages(prev => prev.filter(msg => msg.id !== payload.old.id))
             })
             .subscribe()
 
@@ -131,15 +134,32 @@ export default function Chat({ profile }) {
         e.preventDefault()
         if (!newMessage.trim() || loading) return
         setLoading(true)
+        const receiver = selectedUserRef.current
         const { error } = await supabase.from('chat_messages').insert([{
             sender_id: profile.id,
             content: newMessage.trim(),
-            receiver_id: selectedUser ? selectedUser.id : null
+            receiver_id: receiver ? receiver.id : null
         }])
         setLoading(false)
         if (!error) {
             setNewMessage('')
             fetchMessages()
+        } else {
+            alert('Mesaj gönderilemedi: ' + error.message)
+        }
+    }
+
+    const handleDeleteMessage = async (messageId) => {
+        const canDelete = profile?.roles?.name === 'Admin' || profile?.roles?.permissions?.includes('delete_chat_message')
+        if (!canDelete) return
+
+        if (!confirm('Bu mesajı sistemden tamamen silmek istediğinize emin misiniz?')) return
+
+        const { error } = await supabase.from('chat_messages').delete().eq('id', messageId)
+        if (error) {
+            alert('Silme hatası: ' + error.message)
+        } else {
+            setMessages(prev => prev.filter(m => m.id !== messageId))
         }
     }
 
@@ -297,6 +317,21 @@ export default function Chat({ profile }) {
                                                 }}
                                             >
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                                                    {(profile?.roles?.name === 'Admin' || profile?.roles?.permissions?.includes('delete_chat_message')) && (
+                                                        <button
+                                                            onClick={() => handleDeleteMessage(m.id)}
+                                                            style={{
+                                                                background: 'none', border: 'none', color: 'rgba(239, 68, 68, 0.4)',
+                                                                padding: '2px', cursor: 'pointer', transition: 'all 0.2s',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                            }}
+                                                            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                                            onMouseLeave={e => e.currentTarget.style.color = 'rgba(239, 68, 68, 0.4)'}
+                                                            title="Mesajı Sil"
+                                                        >
+                                                            <Trash2 size={10} />
+                                                        </button>
+                                                    )}
                                                     <span style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.35)' }}>
                                                         {isMe ? 'Sen' : m.sender?.full_name}
                                                     </span>

@@ -45,6 +45,7 @@ const getToday = () => {
 export default function WorkshopPage() {
     const { profile, loading: authLoading } = usePermissions()
     const isAdmin = profile?.roles?.name === 'Admin'
+    const userPermissions = profile?.roles?.permissions || []
     const [projects, setProjects] = useState([])
     const [selectedProjectId, setSelectedProjectId] = useState('')
     const [timelineData, setTimelineData] = useState([])
@@ -469,18 +470,20 @@ export default function WorkshopPage() {
                                 <FileSpreadsheet size={18} color="#4ade80" /> <span style={{ fontWeight: 600 }}>Rapor İndir (Excel)</span>
                             </button>
                         )}
-                        <button
-                            className="btn btn-primary"
-                            onClick={() => setIsLogModalOpen(true)}
-                            style={{
-                                boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5)',
-                                padding: '0.8rem 1.5rem',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(255, 255, 255, 0.1)'
-                            }}
-                        >
-                            <Play size={18} fill="currentColor" style={{ marginRight: '0.5rem' }} /> Yeni Aksiyon Başlat
-                        </button>
+                        {(isAdmin || userPermissions.includes('create_operation')) && (
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => setIsLogModalOpen(true)}
+                                style={{
+                                    boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5)',
+                                    padding: '0.8rem 1.5rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                                }}
+                            >
+                                <Play size={18} fill="currentColor" style={{ marginRight: '0.5rem' }} /> Yeni Aksiyon Başlat
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1185,35 +1188,39 @@ export default function WorkshopPage() {
                                     <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.1rem' }}>{op.order_id}</div>
                                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.project_name}</div>
                                 </div>
-                                <button
-                                    onClick={() => { setSelectedOp(op); setStatusUpdate({ status: op.status, note: '' }); setIsStatusModalOpen(true); setActiveOpMenuId(null); }}
-                                    style={{ ...itemStyle }}
-                                    className="nav-item-mini"
-                                >
-                                    <Play size={14} color="var(--primary)" /> Statü Güncelle
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setSelectedOp(op);
-                                        setActiveOpMenuId(null);
-                                        setSelectedProjectId(op.project_id);
-                                        setSelectedMachineId(op.machine_id);
-                                        setSelectedBomId(op.bom_id);
-                                        setLogData({
-                                            process: op.process,
-                                            targetDate: op.target_date || getToday(),
-                                            responsibleDept: op.responsible_dept,
-                                            responsiblePersonId: op.responsible_person_id,
-                                            notes: op.notes || '',
-                                            predecessorId: op.parent_id || ''
-                                        });
-                                        setIsLogModalOpen(true);
-                                    }}
-                                    style={{ ...itemStyle }}
-                                    className="nav-item-mini"
-                                >
-                                    <Edit3 size={14} color="var(--primary)" /> Düzenle
-                                </button>
+                                {(isAdmin || userPermissions.includes('update_status') || op.responsible_person_id === profile.id) && (
+                                    <button
+                                        onClick={() => { setSelectedOp(op); setStatusUpdate({ status: op.status, note: '' }); setIsStatusModalOpen(true); setActiveOpMenuId(null); }}
+                                        style={{ ...itemStyle }}
+                                        className="nav-item-mini"
+                                    >
+                                        <Play size={14} color="var(--primary)" /> Statü Güncelle
+                                    </button>
+                                )}
+                                {(isAdmin || userPermissions.includes('edit_operation')) && (
+                                    <button
+                                        onClick={() => {
+                                            setSelectedOp(op);
+                                            setActiveOpMenuId(null);
+                                            setSelectedProjectId(op.project_id);
+                                            setSelectedMachineId(op.machine_id);
+                                            setSelectedBomId(op.bom_id);
+                                            setLogData({
+                                                process: op.process,
+                                                targetDate: op.target_date || getToday(),
+                                                responsibleDept: op.responsible_dept,
+                                                responsiblePersonId: op.responsible_person_id,
+                                                notes: op.notes || '',
+                                                predecessorId: op.parent_id || ''
+                                            });
+                                            setIsLogModalOpen(true);
+                                        }}
+                                        style={{ ...itemStyle }}
+                                        className="nav-item-mini"
+                                    >
+                                        <Edit3 size={14} color="var(--primary)" /> Düzenle
+                                    </button >
+                                )}
                                 <button
                                     onClick={() => { setSelectedOp(op); setIsTimelineModalOpen(true); setActiveOpMenuId(null); }}
                                     style={{ ...itemStyle }}
@@ -1221,39 +1228,46 @@ export default function WorkshopPage() {
                                 >
                                     <Activity size={14} color="var(--primary)" /> Süreç Geçmişi
                                 </button>
-                                <div style={{ height: '1px', background: 'var(--border)', margin: '0.3rem 0' }} />
-                                <button
-                                    onClick={() => { handleDeleteClick(op.id); setActiveOpMenuId(null); }}
-                                    style={{ ...itemStyle, color: '#ef4444' }}
-                                    className="nav-item-mini"
-                                >
-                                    <Trash2 size={14} /> Sil
-                                </button>
+                                {(isAdmin || userPermissions.includes('delete_operation')) && (
+                                    <>
+                                        <div style={{ height: '1px', background: 'var(--border)', margin: '0.3rem 0' }} />
+                                        <button
+                                            onClick={() => { handleDeleteClick(op.id); setActiveOpMenuId(null); }}
+                                            style={{ ...itemStyle, color: '#ef4444' }}
+                                            className="nav-item-mini"
+                                        >
+                                            <Trash2 size={14} /> Sil
+                                        </button>
+                                    </>
+                                )}
                             </>
                         );
                     })()}
                 </div>,
                 document.body
-            )}
+            )
+            }
 
-            {isDeleteModalOpen && typeof document !== 'undefined' && createPortal(
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, backdropFilter: 'blur(10px)' }}>
-                    <div className="card animate-fade-in" style={{ width: '400px', padding: '2.5rem', background: 'var(--card)', textAlign: 'center' }}>
-                        <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
-                            <Trash2 size={30} />
+            {
+                isDeleteModalOpen && typeof document !== 'undefined' && createPortal(
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, backdropFilter: 'blur(10px)' }}>
+                        <div className="card animate-fade-in" style={{ width: '400px', padding: '2.5rem', background: 'var(--card)', textAlign: 'center' }}>
+                            <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                                <Trash2 size={30} />
+                            </div>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Emin misiniz?</h3>
+                            <p style={{ color: 'var(--muted-foreground)', marginBottom: '2rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                                Bu aksiyonu (<strong>{operations.find(o => o.id === deletingOpId)?.order_id}</strong>) kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <button onClick={() => { setIsDeleteModalOpen(false); setDeletingOpId(null); }} className="btn" style={{ background: 'var(--secondary)' }}>Vazgeç</button>
+                                <button onClick={confirmDelete} className="btn" style={{ background: '#ef4444', color: 'white' }}>Evet, Sil</button>
+                            </div>
                         </div>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Emin misiniz?</h3>
-                        <p style={{ color: 'var(--muted-foreground)', marginBottom: '2rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                            Bu aksiyonu (<strong>{operations.find(o => o.id === deletingOpId)?.order_id}</strong>) kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
-                        </p>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <button onClick={() => { setIsDeleteModalOpen(false); setDeletingOpId(null); }} className="btn" style={{ background: 'var(--secondary)' }}>Vazgeç</button>
-                            <button onClick={confirmDelete} className="btn" style={{ background: '#ef4444', color: 'white' }}>Evet, Sil</button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
-        </div>
+                    </div>,
+                    document.body
+                )
+            }
+        </div >
     )
 }
