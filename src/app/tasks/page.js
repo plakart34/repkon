@@ -407,13 +407,13 @@ export default function Tasks() {
         <div className="main-container">
             <Sidebar profile={profile} />
 
-            <main className="content animate-fade-in" style={{ minWidth: 0 }}>
-                <header className="header" style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <main className="content animate-fade-in" style={{ minWidth: 0, padding: '1.5rem' }}>
+                <header className="header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                        <h2 style={{ fontSize: '2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <Building size={32} color="var(--primary)" /> Ekip İş Takibi <span style={{ fontSize: '1rem', color: 'var(--muted-foreground)', fontWeight: 400 }}>(Aktif Görevler)</span>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Building size={24} color="var(--primary)" /> Ekip İş Takibi <span style={{ fontSize: '0.9rem', color: 'var(--muted-foreground)', fontWeight: 400 }}>(Aktif Görevler)</span>
                         </h2>
-                        <p style={{ color: 'var(--muted-foreground)', marginTop: '0.5rem' }}>Ekiplerin ve personelin sorumluluğundaki güncel çalıştay aksiyonları.</p>
+                        <p style={{ color: 'var(--muted-foreground)', marginTop: '0.25rem', fontSize: '0.9rem' }}>Ekiplerin ve personelin sorumluluğundaki güncel çalıştay aksiyonları.</p>
                     </div>
 
                     <div style={{ display: 'flex', background: 'var(--secondary)', padding: '0.25rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
@@ -434,7 +434,7 @@ export default function Tasks() {
 
                 {/* Department Tabs */}
                 {departments.length > 0 ? (
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
                         {departments.map(dept => (
                             <button
                                 key={dept}
@@ -478,7 +478,7 @@ export default function Tasks() {
                                     e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
                                     handleDrop(e, person)
                                 }}
-                                style={{ minWidth: '350px', maxWidth: '350px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', display: 'flex', flexDirection: 'column', maxHeight: '75vh', transition: 'all 0.2s' }}
+                                style={{ minWidth: '300px', maxWidth: '300px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 250px)', transition: 'all 0.2s' }}
                             >
                                 <div style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.01)', borderTopLeftRadius: '16px', borderTopRightRadius: '16px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -499,7 +499,7 @@ export default function Tasks() {
                                                 draggable
                                                 onDragStart={(e) => handleDragStart(e, op)}
                                                 onDragEnd={handleDragEnd}
-                                                style={{ padding: '1rem', background: 'var(--card)', border: '1px solid var(--border)', borderLeft: `4px solid ${op.status === 'İşlemde' ? '#3b82f6' : '#facc15'}`, position: 'relative', cursor: 'grab' }}
+                                                style={{ padding: '0.75rem', background: 'var(--card)', border: '1px solid var(--border)', borderLeft: `4px solid ${op.status === 'İşlemde' ? '#3b82f6' : '#facc15'}`, position: 'relative', cursor: 'grab' }}
                                             >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                                                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)' }}>{op.order_id}</span>
@@ -524,10 +524,14 @@ export default function Tasks() {
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', fontWeight: 600, color: 'var(--foreground)', lineHeight: 1.4 }}>{op.process}</p>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Folder size={12} /> <span style={{ color: 'white' }}>{op.project_name}</span></div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Activity size={12} /> <span>{op.machine_name}</span></div>
+                                                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', lineHeight: 1.3 }}>{op.process}</p>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                        <Folder size={10} /> <span style={{ color: 'rgba(255,255,255,0.7)' }}>{op.project_name}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                        <Activity size={10} /> <span>{op.machine_name}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )

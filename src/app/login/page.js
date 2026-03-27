@@ -3,13 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react'
+import { Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
 
 export default function Login() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
     const router = useRouter()
 
     const handleLogin = async (e) => {
@@ -64,7 +65,7 @@ export default function Login() {
                                 onChange={e => setEmail(e.target.value)}
                                 placeholder=""
                             />
-                            <Mail size={16} style={{ position: 'absolute', left: '0.75rem', top: '1rem', color: 'var(--muted-foreground)' }} />
+                            <Mail size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
                         </div>
                     </div>
 
@@ -73,13 +74,20 @@ export default function Login() {
                         <div style={{ position: 'relative' }}>
                             <input
                                 required
-                                type="password"
-                                style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: 'none', borderRadius: 'var(--radius)', padding: '0.75rem 0.75rem 0.75rem 2.5rem', outline: 'none' }}
+                                type={showPassword ? 'text' : 'password'}
+                                style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: 'none', borderRadius: 'var(--radius)', padding: '0.75rem 3rem 0.75rem 2.5rem', outline: 'none' }}
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
-                                placeholder="••••••••"
+                                placeholder=""
                             />
-                            <Lock size={16} style={{ position: 'absolute', left: '0.75rem', top: '1rem', color: 'var(--muted-foreground)' }} />
+                            <Lock size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
                         </div>
                     </div>
 

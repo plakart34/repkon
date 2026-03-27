@@ -125,7 +125,11 @@ export default function UnifiedHome() {
     completedOps: operations.filter(o => o.status === 'Tamamlandı').length,
     delayedOps: operations.filter(o => {
       if (o.status === 'Tamamlandı' || !o.target_date) return false
-      return new Date(o.target_date) < new Date()
+      const target = new Date(o.target_date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      target.setHours(0, 0, 0, 0)
+      return target < today
     }).length,
     completionRate: operations.length ? Math.round((operations.filter(o => o.status === 'Tamamlandı').length / operations.length) * 100) : 0
   }
@@ -163,9 +167,9 @@ export default function UnifiedHome() {
         {/* --- Row 1: Quick Stats --- */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem', marginBottom: '2rem' }}>
           {[
-            { label: 'Aktif Aksiyonlar', value: stats.totalOps, icon: Activity, color: '#3b82f6', sub: 'Toplam kayıtlı işlem' },
+            { label: 'Vadesi Geçmiş', value: stats.delayedOps, icon: AlertTriangle, color: '#ef4444', sub: 'Kritik müdahale bekleyen' },
             { label: 'Tamamlanan', value: stats.completedOps, icon: CheckCircle2, color: '#4ade80', sub: 'Başarıyla sonuçlanan' },
-            { label: 'Gecikmiş İşler', value: stats.delayedOps, icon: AlertTriangle, color: '#ef4444', sub: 'Kritik müdahale bekleyen' },
+            { label: 'Aktif Aksiyonlar', value: stats.totalOps - stats.completedOps, icon: Activity, color: '#3b82f6', sub: 'Süreçteki toplam iş' },
             { label: 'Genel Performans', value: `%${stats.completionRate}`, icon: TrendingUp, color: '#a855f7', sub: 'İş bitirme oranı' }
           ].map((s, i) => (
             <div key={i} className="card" style={{ padding: '1.25rem', borderLeft: `4px solid ${s.color}`, background: 'rgba(255,255,255,0.01)' }}>
