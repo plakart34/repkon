@@ -35,7 +35,11 @@ import {
     Check,
     FileSpreadsheet, // Added for export functionality
     Download, // Added for export functionality
-    ChevronDown // Added as per instruction snippet
+    ChevronDown, // Added as per instruction snippet
+    AlertTriangle,
+    CheckSquare,
+    Square,
+    FastForward
 } from 'lucide-react'
 
 const getToday = () => {
@@ -78,12 +82,17 @@ export default function WorkshopPage() {
     const [searchTerm, setSearchTerm] = useState('')
     const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
+    const [selectedOpIds, setSelectedOpIds] = useState([])
+    const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
+    const [bulkStatus, setBulkStatus] = useState('')
+
     const [logData, setLogData] = useState({
         process: '',
         targetDate: getToday(),
         responsibleDept: '',
         responsiblePersonId: '',
-        notes: ''
+        notes: '',
+        priority: 'Normal'
     })
 
     const fetchData = async () => {
@@ -205,6 +214,7 @@ export default function WorkshopPage() {
             responsible_dept: logData.responsibleDept,
             responsible_person: respPerson?.full_name,
             responsible_person_id: logData.responsiblePersonId,
+            priority: logData.priority || 'Normal',
             status: 'Bekliyor',
             history: [{
                 status: 'Başlatıldı',
@@ -262,6 +272,24 @@ export default function WorkshopPage() {
         setIsLogModalOpen(false)
         setSelectedOp(null)
         setLogData({ process: '', targetDate: getToday(), responsibleDept: '', responsiblePersonId: '', notes: '', predecessorId: '' })
+    }
+
+    const handleBulkStatusUpdate = async () => {
+        if (!bulkStatus || selectedOpIds.length === 0) return
+        setLoading(true)
+        const { error } = await supabase
+            .from('operations')
+            .update({ status: bulkStatus })
+            .in('id', selectedOpIds)
+
+        if (error) {
+            alert('Hata: ' + error.message)
+        } else {
+            setIsBulkModalOpen(false)
+            setSelectedOpIds([])
+            fetchData()
+        }
+        setLoading(false)
     }
 
     const getSortedOperations = () => {
@@ -535,6 +563,37 @@ export default function WorkshopPage() {
                         </div>
                     </div>
                 </section>
+
+                {/* Bulk Action Summary Bar */}
+                {selectedOpIds.length > 0 && (
+                    <div className="animate-fade-in" style={{
+                        position: 'sticky', top: '1rem', zIndex: 1200, marginBottom: '2rem',
+                        background: 'linear-gradient(135deg, ' + 'var(--primary)' + ' 0%, #1d4ed8 100%)',
+                        padding: '1rem 2rem', borderRadius: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        boxShadow: '0 20px 40px rgba(59, 130, 246, 0.4)', border: '1px solid rgba(255,255,255,0.2)'
+                    }}>
+                        <div style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <CheckSquare size={24} />
+                            <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>{selectedOpIds.length} İş Seçildi</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button
+                                onClick={() => setIsBulkModalOpen(true)}
+                                className="btn"
+                                style={{ background: 'white', color: 'var(--primary)', fontWeight: 800 }}
+                            >
+                                <FastForward size={16} /> Toplu Statü Güncelle
+                            </button>
+                            <button
+                                onClick={() => setSelectedOpIds([])}
+                                className="btn"
+                                style={{ background: 'rgba(0,0,0,0.2)', color: 'white', fontWeight: 600, border: '1px solid rgba(255,255,255,0.3)' }}
+                            >
+                                Seçimi Kaldır
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Filters Section */}
                 <section className="card" style={{ marginBottom: '2rem', padding: '1.5rem', background: 'var(--card)', overflow: 'visible', position: 'relative', zIndex: 100 }}>
@@ -844,8 +903,23 @@ export default function WorkshopPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                 <thead>
                                     <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
+                                        <th style={{ padding: '0.75rem', width: '40px' }}>
+                                            <div
+                                                onClick={() => {
+                                                    if (selectedOpIds.length === sortedOperations.length) {
+                                                        setSelectedOpIds([])
+                                                    } else {
+                                                        setSelectedOpIds(sortedOperations.map(o => o.id))
+                                                    }
+                                                }}
+                                                style={{ cursor: 'pointer', color: 'var(--primary)' }}
+                                            >
+                                                {selectedOpIds.length === sortedOperations.length ? <CheckSquare size={18} /> : <Square size={18} />}
+                                            </div>
+                                        </th>
                                         {[
                                             { label: 'No / Statü', key: 'order_id', width: '100px' },
+                                            { label: 'Önem', key: 'priority', width: '90px' },
                                             { label: 'Proje', key: 'project_name' },
                                             { label: 'Makine', key: 'machine_name' },
                                             { label: 'BOM / Parça', key: 'bom_code' },
@@ -874,91 +948,119 @@ export default function WorkshopPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {sortedOperations.map(op => (
-                                        <tr
-                                            key={op.id}
-                                            style={{
-                                                borderBottom: '1px solid var(--border)',
-                                                cursor: 'context-menu',
-                                                transition: 'all 0.2s ease',
-                                                backgroundColor: activeOpMenuId === op.id ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
-                                                boxShadow: activeOpMenuId === op.id ? 'inset 4px 0 0 var(--primary)' : 'none'
-                                            }}
-                                            onContextMenu={(e) => handleContextMenu(e, op.id)}
-                                            className="nav-item-mini"
-                                        >
-                                            <td style={{ padding: '0.75rem' }}>
-                                                <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.order_id}</div>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                                    <span className="status-badge" style={{ background: getStatusColor(op.status).bg, color: getStatusColor(op.status).text, fontSize: '0.75rem', padding: '0.1rem 0.4rem', width: 'fit-content' }}>{op.status}</span>
-                                                    {op.parent_id && (() => {
-                                                        const parent = operations.find(o => o.id === op.parent_id);
-                                                        if (!parent) return null;
-                                                        return (
-                                                            <div style={{
-                                                                fontSize: '0.65rem',
-                                                                color: parent.status === 'Tamamlandı' ? '#4ade80' : '#f87171',
-                                                                background: 'rgba(255,255,255,0.03)',
-                                                                padding: '2px 6px',
-                                                                borderRadius: '4px',
-                                                                border: '1px solid rgba(255,255,255,0.05)',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '4px'
-                                                            }}>
-                                                                <span style={{ opacity: 0.6 }}>Öncül:</span> {parent.order_id}
-                                                                <span style={{ fontWeight: 700, fontStyle: 'italic' }}>({parent.status})</span>
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)' }}>{op.project_name}</td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
-                                                <div>{op.machine_name}</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.machine_model}</div>
-                                            </td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
-                                                <div style={{ fontWeight: 500 }}>{op.bom_code || '-'}</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.bom_name}</div>
-                                            </td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
-                                                <div style={{ color: 'var(--foreground)' }}>{op.process}</div>
-                                            </td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsible_dept}</td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsible_person}</td>
-                                            <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
-                                                <div
-                                                    className={getTargetDateStyle(op.target_date, op.status).className}
-                                                    style={{
-                                                        color: getTargetDateStyle(op.target_date, op.status).color,
-                                                        fontWeight: getTargetDateStyle(op.target_date, op.status).fontWeight || 400
-                                                    }}
-                                                >
-                                                    {op.target_date ? new Date(op.target_date).toLocaleDateString('tr-TR') : '-'}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                                                <div style={{ position: 'relative' }}>
-                                                    <button
+                                    {sortedOperations.map(op => {
+                                        const isLate = op.status !== 'Tamamlandı' && op.target_date && op.target_date < getToday()
+                                        return (
+                                            <tr
+                                                key={op.id}
+                                                style={{
+                                                    borderBottom: '1px solid var(--border)',
+                                                    cursor: 'context-menu',
+                                                    transition: 'all 0.2s ease',
+                                                    backgroundColor: activeOpMenuId === op.id ? 'rgba(59, 130, 246, 0.12)' : (isLate ? 'rgba(239, 68, 68, 0.03)' : 'transparent'),
+                                                    boxShadow: activeOpMenuId === op.id ? 'inset 4px 0 0 var(--primary)' : (isLate ? 'inset 4px 0 0 #ef4444' : 'none')
+                                                }}
+                                                onContextMenu={(e) => handleContextMenu(e, op.id)}
+                                                className="nav-item-mini"
+                                            >
+                                                <td style={{ padding: '0.75rem' }}>
+                                                    <div
                                                         onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const rect = e.currentTarget.getBoundingClientRect();
-                                                            handleContextMenu({
-                                                                clientX: rect.left - 180,
-                                                                clientY: rect.bottom + 5,
-                                                                preventDefault: () => { },
-                                                                stopPropagation: () => { }
-                                                            }, op.id);
+                                                            e.stopPropagation()
+                                                            setSelectedOpIds(prev =>
+                                                                prev.includes(op.id) ? prev.filter(id => id !== op.id) : [...prev, op.id]
+                                                            )
                                                         }}
-                                                        style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', padding: '0.4rem' }}
+                                                        style={{ cursor: 'pointer', color: selectedOpIds.includes(op.id) ? 'var(--primary)' : 'var(--muted-foreground)' }}
                                                     >
-                                                        <MoreVertical size={18} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                        {selectedOpIds.includes(op.id) ? <CheckSquare size={18} /> : <Square size={18} />}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '0.75rem' }}>
+                                                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.2rem' }}>{op.order_id}</div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                                        <span className="status-badge" style={{ background: getStatusColor(op.status).bg, color: getStatusColor(op.status).text, fontSize: '0.75rem', padding: '0.1rem 0.4rem', width: 'fit-content' }}>{op.status}</span>
+                                                        {op.parent_id && (() => {
+                                                            const parent = operations.find(o => o.id === op.parent_id);
+                                                            if (!parent) return null;
+                                                            return (
+                                                                <div style={{
+                                                                    fontSize: '0.65rem',
+                                                                    color: parent.status === 'Tamamlandı' ? '#4ade80' : '#f87171',
+                                                                    background: 'rgba(255,255,255,0.03)',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    border: '1px solid rgba(255,255,255,0.05)',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '4px'
+                                                                }}>
+                                                                    <span style={{ opacity: 0.6 }}>Öncül:</span> {parent.order_id}
+                                                                    <span style={{ fontWeight: 700, fontStyle: 'italic' }}>({parent.status})</span>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '0.75rem' }}>
+                                                    <span style={{
+                                                        padding: '0.2rem 0.5rem',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 800,
+                                                        background: op.priority === 'Acil' ? '#ef4444' : (op.priority === 'Kritik' ? '#f97316' : 'rgba(255,255,255,0.05)'),
+                                                        color: op.priority === 'Acil' || op.priority === 'Kritik' ? 'white' : 'var(--muted-foreground)'
+                                                    }}>
+                                                        {op.priority || 'Normal'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '0.75rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)' }}>{op.project_name}</td>
+                                                <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
+                                                    <div>{op.machine_name}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.machine_model}</div>
+                                                </td>
+                                                <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
+                                                    <div style={{ fontWeight: 500 }}>{op.bom_code || '-'}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{op.bom_name}</div>
+                                                </td>
+                                                <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
+                                                    <div style={{ color: 'var(--foreground)' }}>{op.process}</div>
+                                                </td>
+                                                <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsible_dept}</td>
+                                                <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{op.responsible_person}</td>
+                                                <td style={{ padding: '0.75rem', fontSize: '0.85rem' }}>
+                                                    <div
+                                                        className={getTargetDateStyle(op.target_date, op.status).className}
+                                                        style={{
+                                                            color: getTargetDateStyle(op.target_date, op.status).color,
+                                                            fontWeight: getTargetDateStyle(op.target_date, op.status).fontWeight || 400
+                                                        }}
+                                                    >
+                                                        {op.target_date ? new Date(op.target_date).toLocaleDateString('tr-TR') : '-'}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                                                    <div style={{ position: 'relative' }}>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                                handleContextMenu({
+                                                                    clientX: rect.left - 180,
+                                                                    clientY: rect.bottom + 5,
+                                                                    preventDefault: () => { },
+                                                                    stopPropagation: () => { }
+                                                                }, op.id);
+                                                            }}
+                                                            style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', padding: '0.4rem' }}
+                                                        >
+                                                            <MoreVertical size={18} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         )}
@@ -967,287 +1069,323 @@ export default function WorkshopPage() {
             </main>
 
             {/* Modals */}
-            {isLogModalOpen && typeof document !== 'undefined' && createPortal(
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
-                    <div className="card animate-fade-in" style={{ width: '600px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
-                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{selectedOp ? 'Aksiyonu Düzenle' : 'Yeni Aksiyon Başlat'}</h3>
-                            <button onClick={() => { setIsLogModalOpen(false); setSelectedOp(null); setLogData({ process: '', targetDate: getToday(), responsibleDept: '', responsiblePersonId: '', notes: '', predecessorId: '' }); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
-                                <X size={28} />
-                            </button>
-                        </div>
+            {
+                isLogModalOpen && typeof document !== 'undefined' && createPortal(
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
+                        <div className="card animate-fade-in" style={{ width: '600px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '90vh', overflowY: 'auto' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
+                                <h3 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{selectedOp ? 'Aksiyonu Düzenle' : 'Yeni Aksiyon Başlat'}</h3>
+                                <button onClick={() => { setIsLogModalOpen(false); setSelectedOp(null); setLogData({ process: '', targetDate: getToday(), responsibleDept: '', responsiblePersonId: '', notes: '', predecessorId: '' }); }} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+                                    <X size={28} />
+                                </button>
+                            </div>
 
-                        <form onSubmit={handleSaveLog}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Proje</label>
-                                    <select required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)}>
-                                        <option value="">Proje Seçin</option>
-                                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            <form onSubmit={handleSaveLog}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Proje</label>
+                                        <select required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)}>
+                                            <option value="">Proje Seçin</option>
+                                            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Makine</label>
+                                        <select disabled={!selectedProjectId} required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={selectedMachineId} onChange={e => setSelectedMachineId(e.target.value)}>
+                                            <option value="">Makine Seçin</option>
+                                            {machines.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>BOM / Parça</label>
+                                    <select disabled={!selectedMachineId} style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={selectedBomId} onChange={e => setSelectedBomId(e.target.value)}>
+                                        <option value="">Parça Seçin (Opsiyonel)</option>
+                                        {bomItems.map(b => <option key={b.id} value={b.id}>{b.code} - {b.name} ({b.listType})</option>)}
                                     </select>
                                 </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Makine</label>
-                                    <select disabled={!selectedProjectId} required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={selectedMachineId} onChange={e => setSelectedMachineId(e.target.value)}>
-                                        <option value="">Makine Seçin</option>
-                                        {machines.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                    </select>
+
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yapılan İşlem / Operasyon</label>
+                                    <input required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={logData.process} onChange={e => setLogData({ ...logData, process: e.target.value })} placeholder="Örn: Mekanik montaj aşaması başladı" />
                                 </div>
-                            </div>
 
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>BOM / Parça</label>
-                                <select disabled={!selectedMachineId} style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={selectedBomId} onChange={e => setSelectedBomId(e.target.value)}>
-                                    <option value="">Parça Seçin (Opsiyonel)</option>
-                                    {bomItems.map(b => <option key={b.id} value={b.id}>{b.code} - {b.name} ({b.listType})</option>)}
-                                </select>
-                            </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Sorumlu Bölüm</label>
+                                        <select
+                                            required
+                                            style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
+                                            value={logData.responsibleDept}
+                                            onChange={e => setLogData({ ...logData, responsibleDept: e.target.value, responsiblePersonId: '' })}
+                                        >
+                                            <option value="">Bölüm Seçin</option>
+                                            {dynamicDepts.map(d => <option key={d} value={d}>{d}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Sorumlu Kişi</label>
+                                        <select
+                                            required
+                                            disabled={!logData.responsibleDept}
+                                            style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', opacity: logData.responsibleDept ? 1 : 0.5 }}
+                                            value={logData.responsiblePersonId}
+                                            onChange={e => setLogData({ ...logData, responsiblePersonId: e.target.value })}
+                                        >
+                                            <option value="">Kişi Seçin</option>
+                                            {members
+                                                .filter(m => m.department === logData.responsibleDept)
+                                                .map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
 
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yapılan İşlem / Operasyon</label>
-                                <input required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={logData.process} onChange={e => setLogData({ ...logData, process: e.target.value })} placeholder="Örn: Mekanik montaj aşaması başladı" />
-                            </div>
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Hedef Tamamlanma Tarihi</label>
+                                    <input type="date" required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={logData.targetDate} onChange={e => setLogData({ ...logData, targetDate: e.target.value })} />
+                                </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Sorumlu Bölüm</label>
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Öncelik Seviyesi</label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                                        {['Normal', 'Kritik', 'Acil'].map(p => (
+                                            <button
+                                                key={p}
+                                                type="button"
+                                                onClick={() => setLogData({ ...logData, priority: p })}
+                                                style={{
+                                                    padding: '0.75rem',
+                                                    borderRadius: '10px',
+                                                    border: '1px solid',
+                                                    background: logData.priority === p ? 'var(--primary)' : 'var(--secondary)',
+                                                    borderColor: logData.priority === p ? 'var(--primary)' : 'var(--border)',
+                                                    color: logData.priority === p ? 'white' : 'var(--foreground)',
+                                                    fontSize: '0.85rem',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    transition: '0.2s'
+                                                }}
+                                            >
+                                                {p === 'Acil' && '🔴 '}
+                                                {p === 'Kritik' && '🟠 '}
+                                                {p}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '2.5rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Öncül Aksiyon (Bağımlılık)</label>
                                     <select
-                                        required
                                         style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
-                                        value={logData.responsibleDept}
-                                        onChange={e => setLogData({ ...logData, responsibleDept: e.target.value, responsiblePersonId: '' })}
+                                        value={logData.predecessorId}
+                                        onChange={e => setLogData({ ...logData, predecessorId: e.target.value })}
                                     >
-                                        <option value="">Bölüm Seçin</option>
-                                        {dynamicDepts.map(d => <option key={d} value={d}>{d}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Sorumlu Kişi</label>
-                                    <select
-                                        required
-                                        disabled={!logData.responsibleDept}
-                                        style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', opacity: logData.responsibleDept ? 1 : 0.5 }}
-                                        value={logData.responsiblePersonId}
-                                        onChange={e => setLogData({ ...logData, responsiblePersonId: e.target.value })}
-                                    >
-                                        <option value="">Kişi Seçin</option>
-                                        {members
-                                            .filter(m => m.department === logData.responsibleDept)
-                                            .map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)
+                                        <option value="">Seçilmedi (Bağımsız)</option>
+                                        {operations
+                                            .filter(o => !selectedOp || o.id !== selectedOp.id)
+                                            .sort((a, b) => (a.order_id > b.order_id ? -1 : 1))
+                                            .map(o => (
+                                                <option key={o.id} value={o.id} style={{ background: 'var(--card)' }}>
+                                                    {o.order_id} - {o.process.substring(0, 40)}... ({o.status})
+                                                </option>
+                                            ))
                                         }
                                     </select>
                                 </div>
-                            </div>
 
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Hedef Tamamlanma Tarihi</label>
-                                <input type="date" required style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }} value={logData.targetDate} onChange={e => setLogData({ ...logData, targetDate: e.target.value })} />
-                            </div>
-
-                            <div style={{ marginBottom: '2.5rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Öncül Aksiyon (Bağımlılık)</label>
-                                <select
-                                    style={{ width: '100%', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
-                                    value={logData.predecessorId}
-                                    onChange={e => setLogData({ ...logData, predecessorId: e.target.value })}
-                                >
-                                    <option value="">Seçilmedi (Bağımsız)</option>
-                                    {operations
-                                        .filter(o => !selectedOp || o.id !== selectedOp.id)
-                                        .sort((a, b) => (a.order_id > b.order_id ? -1 : 1))
-                                        .map(o => (
-                                            <option key={o.id} value={o.id} style={{ background: 'var(--card)' }}>
-                                                {o.order_id} - {o.process.substring(0, 40)}... ({o.status})
-                                            </option>
-                                        ))
-                                    }
-                                </select>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <button type="button" onClick={() => { setIsLogModalOpen(false); setSelectedOp(null); }} className="btn" style={{ background: 'var(--secondary)', color: 'var(--foreground)' }}>İptal</button>
-                                <button type="submit" className="btn btn-primary">{selectedOp ? 'Güncelle' : 'Aksiyonu Başlat'}</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>,
-                document.body
-            )}
-
-            {isStatusModalOpen && typeof document !== 'undefined' && createPortal(
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
-                    <div className="card animate-fade-in" style={{ width: '450px', padding: '2.5rem', background: 'var(--card)' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{selectedOp?.order_id} / Statü Güncelle</h3>
-                        <form onSubmit={handleStatusChange}>
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yeni Statü</label>
-                                <select required style={{ width: '100%', padding: '0.75rem' }} value={statusUpdate.status} onChange={e => setStatusUpdate({ ...statusUpdate, status: e.target.value })}>
-                                    <option value="Bekliyor">Bekliyor</option>
-                                    <option value="İşlemde">İşlemde</option>
-                                    <option value="Tamamlandı">Tamamlandı</option>
-                                    <option value="Durduruldu">Durduruldu</option>
-                                </select>
-                            </div>
-                            <div style={{ marginBottom: '2rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Açıklama / Not (Opsiyonel)</label>
-                                <textarea
-                                    style={{ width: '100%', background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', minHeight: '100px', color: 'white' }}
-                                    value={statusUpdate.note}
-                                    onChange={e => setStatusUpdate({ ...statusUpdate, note: e.target.value })}
-                                    placeholder="Neden statü değiştirildi?"
-                                />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <button type="button" onClick={() => setIsStatusModalOpen(false)} className="btn" style={{ background: 'var(--secondary)' }}>Vazgeç</button>
-                                <button type="submit" className="btn btn-primary">Güncelle</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>,
-                document.body
-            )}
-
-            {isTimelineModalOpen && typeof document !== 'undefined' && createPortal(
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(15px)' }}>
-                    <div className="card animate-fade-in" style={{ width: '600px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem', alignItems: 'center' }}>
-                            <div>
-                                <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{selectedOp?.order_id} / Süreç Takibi</h3>
-                                <p style={{ color: 'var(--muted-foreground)', margin: 0 }}>{selectedOp?.process}</p>
-                            </div>
-                            <button onClick={() => setIsTimelineModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
-                                <X size={28} />
-                            </button>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', position: 'relative' }}>
-                            {(selectedOp?.history || []).slice().reverse().map((h, i) => (
-                                <div key={i} style={{ display: 'flex', gap: '1.5rem', position: 'relative' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(h.status).text, zIndex: 2 }} />
-                                        {i !== (selectedOp?.history || []).length - 1 && (
-                                            <div style={{ width: '2px', flex: 1, background: 'var(--border)', margin: '4px 0' }} />
-                                        )}
-                                    </div>
-                                    <div style={{ paddingBottom: '2rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.4rem' }}>
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: getStatusColor(h.status).text, textTransform: 'uppercase' }}>{h.status}</span>
-                                            <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>{new Date(h.timestamp).toLocaleString('tr-TR')}</span>
-                                        </div>
-                                        <div style={{ fontSize: '0.9rem', color: 'white', marginBottom: '0.4rem' }}>{h.note}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                            <User size={12} /> {h.user}
-                                        </div>
-                                    </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <button type="button" onClick={() => { setIsLogModalOpen(false); setSelectedOp(null); }} className="btn" style={{ background: 'var(--secondary)', color: 'var(--foreground)' }}>İptal</button>
+                                    <button type="submit" className="btn btn-primary">{selectedOp ? 'Güncelle' : 'Aksiyonu Başlat'}</button>
                                 </div>
-                            ))}
+                            </form>
                         </div>
-                    </div>
-                </div>,
-                document.body
-            )}
+                    </div>,
+                    document.body
+                )
+            }
+
+            {
+                isStatusModalOpen && typeof document !== 'undefined' && createPortal(
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
+                        <div className="card animate-fade-in" style={{ width: '450px', padding: '2.5rem', background: 'var(--card)' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '2rem' }}>{selectedOp?.order_id} / Statü Güncelle</h3>
+                            <form onSubmit={handleStatusChange}>
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Yeni Statü</label>
+                                    <select required style={{ width: '100%', padding: '0.75rem' }} value={statusUpdate.status} onChange={e => setStatusUpdate({ ...statusUpdate, status: e.target.value })}>
+                                        <option value="Bekliyor">Bekliyor</option>
+                                        <option value="İşlemde">İşlemde</option>
+                                        <option value="Tamamlandı">Tamamlandı</option>
+                                        <option value="Durduruldu">Durduruldu</option>
+                                    </select>
+                                </div>
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Açıklama / Not (Opsiyonel)</label>
+                                    <textarea
+                                        style={{ width: '100%', background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', minHeight: '100px', color: 'white' }}
+                                        value={statusUpdate.note}
+                                        onChange={e => setStatusUpdate({ ...statusUpdate, note: e.target.value })}
+                                        placeholder="Neden statü değiştirildi?"
+                                    />
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <button type="button" onClick={() => setIsStatusModalOpen(false)} className="btn" style={{ background: 'var(--secondary)' }}>Vazgeç</button>
+                                    <button type="submit" className="btn btn-primary">Güncelle</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>,
+                    document.body
+                )
+            }
+
+            {
+                isTimelineModalOpen && typeof document !== 'undefined' && createPortal(
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(15px)' }}>
+                        <div className="card animate-fade-in" style={{ width: '600px', maxWidth: '95vw', padding: '3rem', background: 'var(--card)', maxHeight: '90vh', overflowY: 'auto' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem', alignItems: 'center' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{selectedOp?.order_id} / Süreç Takibi</h3>
+                                    <p style={{ color: 'var(--muted-foreground)', margin: 0 }}>{selectedOp?.process}</p>
+                                </div>
+                                <button onClick={() => setIsTimelineModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+                                    <X size={28} />
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', position: 'relative' }}>
+                                {(selectedOp?.history || []).slice().reverse().map((h, i) => (
+                                    <div key={i} style={{ display: 'flex', gap: '1.5rem', position: 'relative' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(h.status).text, zIndex: 2 }} />
+                                            {i !== (selectedOp?.history || []).length - 1 && (
+                                                <div style={{ width: '2px', flex: 1, background: 'var(--border)', margin: '4px 0' }} />
+                                            )}
+                                        </div>
+                                        <div style={{ paddingBottom: '2rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.4rem' }}>
+                                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: getStatusColor(h.status).text, textTransform: 'uppercase' }}>{h.status}</span>
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>{new Date(h.timestamp).toLocaleString('tr-TR')}</span>
+                                            </div>
+                                            <div style={{ fontSize: '0.9rem', color: 'white', marginBottom: '0.4rem' }}>{h.note}</div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                <User size={12} /> {h.user}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )
+            }
 
 
             {/* Global Context Menu */}
-            {activeOpMenuId && operations.find(o => o.id === activeOpMenuId) && typeof document !== 'undefined' && createPortal(
-                <div
-                    className="card animate-fade-in"
-                    style={{
-                        position: 'fixed',
-                        left: `${menuPos.x}px`,
-                        top: `${menuPos.y}px`,
-                        zIndex: 999999,
-                        minWidth: '220px',
-                        padding: '0.6rem',
-                        background: 'var(--card)',
-                        border: '1px solid var(--border)',
-                        boxShadow: 'var(--shadow-xl)',
-                        borderRadius: '16px',
-                        textAlign: 'left',
-                        backdropFilter: 'blur(10px)'
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {(() => {
-                        const op = operations.find(o => o.id === activeOpMenuId);
-                        const itemStyle = {
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.7rem',
-                            width: '100%',
-                            padding: '0.75rem',
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--foreground)',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            borderRadius: '10px',
-                            transition: 'all 0.2s ease'
-                        }
-                        return (
-                            <>
-                                <div style={{ padding: '0.6rem 0.6rem 0.4rem 0.6rem', borderBottom: '1px solid var(--border)', marginBottom: '0.4rem' }}>
-                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.1rem' }}>{op.order_id}</div>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.project_name}</div>
-                                </div>
-                                {(isAdmin || userPermissions.includes('update_status') || op.responsible_person_id === profile.id) && (
-                                    <button
-                                        onClick={() => { setSelectedOp(op); setStatusUpdate({ status: op.status, note: '' }); setIsStatusModalOpen(true); setActiveOpMenuId(null); }}
-                                        style={{ ...itemStyle }}
-                                        className="nav-item-mini"
-                                    >
-                                        <Play size={14} color="var(--primary)" /> Statü Güncelle
-                                    </button>
-                                )}
-                                {(isAdmin || userPermissions.includes('edit_operation')) && (
-                                    <button
-                                        onClick={() => {
-                                            setSelectedOp(op);
-                                            setActiveOpMenuId(null);
-                                            setSelectedProjectId(op.project_id);
-                                            setSelectedMachineId(op.machine_id);
-                                            setSelectedBomId(op.bom_id);
-                                            setLogData({
-                                                process: op.process,
-                                                targetDate: op.target_date || getToday(),
-                                                responsibleDept: op.responsible_dept,
-                                                responsiblePersonId: op.responsible_person_id,
-                                                notes: op.notes || '',
-                                                predecessorId: op.parent_id || ''
-                                            });
-                                            setIsLogModalOpen(true);
-                                        }}
-                                        style={{ ...itemStyle }}
-                                        className="nav-item-mini"
-                                    >
-                                        <Edit3 size={14} color="var(--primary)" /> Düzenle
-                                    </button >
-                                )}
-                                <button
-                                    onClick={() => { setSelectedOp(op); setIsTimelineModalOpen(true); setActiveOpMenuId(null); }}
-                                    style={{ ...itemStyle }}
-                                    className="nav-item-mini"
-                                >
-                                    <Activity size={14} color="var(--primary)" /> Süreç Geçmişi
-                                </button>
-                                {(isAdmin || userPermissions.includes('delete_operation')) && (
-                                    <>
-                                        <div style={{ height: '1px', background: 'var(--border)', margin: '0.3rem 0' }} />
+            {
+                activeOpMenuId && operations.find(o => o.id === activeOpMenuId) && typeof document !== 'undefined' && createPortal(
+                    <div
+                        className="card animate-fade-in"
+                        style={{
+                            position: 'fixed',
+                            left: `${menuPos.x}px`,
+                            top: `${menuPos.y}px`,
+                            zIndex: 999999,
+                            minWidth: '220px',
+                            padding: '0.6rem',
+                            background: 'var(--card)',
+                            border: '1px solid var(--border)',
+                            boxShadow: 'var(--shadow-xl)',
+                            borderRadius: '16px',
+                            textAlign: 'left',
+                            backdropFilter: 'blur(10px)'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {(() => {
+                            const op = operations.find(o => o.id === activeOpMenuId);
+                            const itemStyle = {
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.7rem',
+                                width: '100%',
+                                padding: '0.75rem',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--foreground)',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                borderRadius: '10px',
+                                transition: 'all 0.2s ease'
+                            }
+                            return (
+                                <>
+                                    <div style={{ padding: '0.6rem 0.6rem 0.4rem 0.6rem', borderBottom: '1px solid var(--border)', marginBottom: '0.4rem' }}>
+                                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.1rem' }}>{op.order_id}</div>
+                                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.project_name}</div>
+                                    </div>
+                                    {(isAdmin || userPermissions.includes('update_status') || op.responsible_person_id === profile.id) && (
                                         <button
-                                            onClick={() => { handleDeleteClick(op.id); setActiveOpMenuId(null); }}
-                                            style={{ ...itemStyle, color: '#ef4444' }}
+                                            onClick={() => { setSelectedOp(op); setStatusUpdate({ status: op.status, note: '' }); setIsStatusModalOpen(true); setActiveOpMenuId(null); }}
+                                            style={{ ...itemStyle }}
                                             className="nav-item-mini"
                                         >
-                                            <Trash2 size={14} /> Sil
+                                            <Play size={14} color="var(--primary)" /> Statü Güncelle
                                         </button>
-                                    </>
-                                )}
-                            </>
-                        );
-                    })()}
-                </div>,
-                document.body
-            )
+                                    )}
+                                    {(isAdmin || userPermissions.includes('edit_operation')) && (
+                                        <button
+                                            onClick={() => {
+                                                setSelectedOp(op);
+                                                setActiveOpMenuId(null);
+                                                setSelectedProjectId(op.project_id);
+                                                setSelectedMachineId(op.machine_id);
+                                                setSelectedBomId(op.bom_id);
+                                                setLogData({
+                                                    process: op.process,
+                                                    targetDate: op.target_date || getToday(),
+                                                    responsibleDept: op.responsible_dept,
+                                                    responsiblePersonId: op.responsible_person_id,
+                                                    notes: op.notes || '',
+                                                    predecessorId: op.parent_id || ''
+                                                });
+                                                setIsLogModalOpen(true);
+                                            }}
+                                            style={{ ...itemStyle }}
+                                            className="nav-item-mini"
+                                        >
+                                            <Edit3 size={14} color="var(--primary)" /> Düzenle
+                                        </button >
+                                    )}
+                                    <button
+                                        onClick={() => { setSelectedOp(op); setIsTimelineModalOpen(true); setActiveOpMenuId(null); }}
+                                        style={{ ...itemStyle }}
+                                        className="nav-item-mini"
+                                    >
+                                        <Activity size={14} color="var(--primary)" /> Süreç Geçmişi
+                                    </button>
+                                    {(isAdmin || userPermissions.includes('delete_operation')) && (
+                                        <>
+                                            <div style={{ height: '1px', background: 'var(--border)', margin: '0.3rem 0' }} />
+                                            <button
+                                                onClick={() => { handleDeleteClick(op.id); setActiveOpMenuId(null); }}
+                                                style={{ ...itemStyle, color: '#ef4444' }}
+                                                className="nav-item-mini"
+                                            >
+                                                <Trash2 size={14} /> Sil
+                                            </button>
+                                        </>
+                                    )}
+                                </>
+                            );
+                        })()}
+                    </div>,
+                    document.body
+                )
             }
 
             {
@@ -1270,6 +1408,46 @@ export default function WorkshopPage() {
                     document.body
                 )
             }
-        </div >
+            {/* Bulk Update Modal */}
+            {isBulkModalOpen && typeof document !== 'undefined' && createPortal(
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(10px)' }}>
+                    <div className="card animate-scale-in" style={{ width: '450px', padding: '2.5rem', position: 'relative' }}>
+                        <button onClick={() => setIsBulkModalOpen(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
+                            <X size={24} />
+                        </button>
+                        <h3 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1rem' }}>Toplu Statü Güncelle</h3>
+                        <p style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem', marginBottom: '2rem' }}>
+                            Seçilen <strong>{selectedOpIds.length}</strong> işin statüsünü toplu olarak değiştirmek üzeresiniz.
+                        </p>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginBottom: '2.5rem' }}>
+                            {['Bekliyor', 'İşlemde', 'Tamamlandı', 'Durduruldu'].map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setBulkStatus(s)}
+                                    style={{
+                                        padding: '1rem', borderRadius: '12px', border: '1px solid',
+                                        background: bulkStatus === s ? 'var(--primary)' : 'rgba(255,255,255,0.03)',
+                                        borderColor: bulkStatus === s ? 'var(--primary)' : 'var(--border)',
+                                        color: bulkStatus === s ? 'white' : 'var(--foreground)',
+                                        fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', transition: '0.2s'
+                                    }}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <button onClick={() => setIsBulkModalOpen(false)} className="btn" style={{ background: 'var(--secondary)' }}>İptal</button>
+                            <button onClick={handleBulkStatusUpdate} className="btn btn-primary" disabled={!bulkStatus || loading}>
+                                {loading ? 'Güncelleniyor...' : 'Seçilenleri Güncelle'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+        </div>
     )
 }
