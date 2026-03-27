@@ -121,8 +121,7 @@ export default function Sidebar({ profile }) {
     const canSee = (path) => isAdmin || permissions.includes(permissionMap[path])
 
     const navItems = [
-        { name: 'Giriş / Projeler', path: '/', icon: Briefcase },
-        { name: 'Analizler (Dashboard)', path: '/dashboard', icon: LayoutDashboard },
+        { name: 'Genel Bakış', path: '/', icon: LayoutDashboard },
         {
             name: 'Projeler',
             path: '/projects',

@@ -328,18 +328,57 @@ export default function WorkshopPage() {
 
     const handleStatusChange = async (e) => {
         e.preventDefault()
+
+        // 1. Öncül İş Kontrolü (Dependency Check)
+        if ((statusUpdate.status === 'İşlemde' || statusUpdate.status === 'Tamamlandı') && selectedOp.parent_id) {
+            const { data: parentOp } = await supabase
+                .from('operations')
+                .select('status, order_id, process')
+                .eq('id', selectedOp.parent_id)
+                .single()
+
+            if (parentOp && parentOp.status !== 'Tamamlandı') {
+                alert(`⚠️ Bu işleme başlayamazsınız!\n\nÖncül işlem ("${parentOp.order_id} - ${parentOp.process}") henüz tamamlanmadı.\nStatü: ${parentOp.status}`)
+                return;
+            }
+        }
+
         const newHistory = [...(selectedOp.history || []), {
             status: statusUpdate.status,
             note: statusUpdate.note,
             timestamp: new Date().toISOString(),
             user: profile.full_name
         }]
+
         const { error } = await supabase.from('operations').update({
             status: statusUpdate.status,
             history: newHistory
         }).eq('id', selectedOp.id)
 
-        if (error) alert(error.message)
+        if (error) {
+            alert(error.message)
+        } else {
+            // 2. Ardıl İşler İçin Bildirim Gönder (Successor Notification)
+            if (statusUpdate.status === 'Tamamlandı') {
+                const { data: children } = await supabase
+                    .from('operations')
+                    .select('*')
+                    .eq('parent_id', selectedOp.id)
+
+                if (children && children.length > 0) {
+                    const notifications = children.map(child => ({
+                        user_id: child.responsible_person_id,
+                        title: 'Öncül İş Tamamlandı 🚀',
+                        message: `"${selectedOp.order_id} - ${selectedOp.process}" tamamlandı. Artık "${child.process}" görevine başlayabilirsiniz.`,
+                        type: 'dependency',
+                        action_link: '/workshop',
+                        created_at: new Date().toISOString()
+                    }))
+                    await supabase.from('notifications').insert(notifications)
+                }
+            }
+        }
+
         fetchData()
         setIsStatusModalOpen(false)
         setStatusUpdate({ status: '', note: '' })

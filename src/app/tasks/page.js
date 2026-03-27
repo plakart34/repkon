@@ -66,6 +66,8 @@ export default function Tasks() {
         predecessorId: ''
     })
 
+    const [draggedOp, setDraggedOp] = useState(null)
+
     const fetchData = async () => {
         try {
             if (!profile) return
@@ -193,18 +195,57 @@ export default function Tasks() {
 
     const handleStatusChange = async (e) => {
         e.preventDefault()
+
+        // 1. Öncül İş Kontrolü (Dependency Check)
+        if ((statusUpdate.status === 'İşlemde' || statusUpdate.status === 'Tamamlandı') && selectedOp.parent_id) {
+            const { data: parentOp } = await supabase
+                .from('operations')
+                .select('status, order_id, process')
+                .eq('id', selectedOp.parent_id)
+                .single()
+
+            if (parentOp && parentOp.status !== 'Tamamlandı') {
+                alert(`⚠️ Bu işleme başlayamazsınız!\n\nÖncül işlem ("${parentOp.order_id} - ${parentOp.process}") henüz tamamlanmadı.\nStatü: ${parentOp.status}`)
+                return;
+            }
+        }
+
         const newHistory = [...(selectedOp.history || []), {
             status: statusUpdate.status,
             note: statusUpdate.note,
             timestamp: new Date().toISOString(),
             user: profile.full_name
         }]
+
         const { error } = await supabase.from('operations').update({
             status: statusUpdate.status,
             history: newHistory
         }).eq('id', selectedOp.id)
 
-        if (error) alert(error.message)
+        if (error) {
+            alert(error.message)
+        } else {
+            // 2. Ardıl İşler İçin Bildirim Gönder (Successor Notification)
+            if (statusUpdate.status === 'Tamamlandı') {
+                const { data: children } = await supabase
+                    .from('operations')
+                    .select('*')
+                    .eq('parent_id', selectedOp.id)
+
+                if (children && children.length > 0) {
+                    const notifications = children.map(child => ({
+                        user_id: child.responsible_person_id,
+                        title: 'Öncül İş Tamamlandı 🚀',
+                        message: `"${selectedOp.order_id} - ${selectedOp.process}" tamamlandı. Artık "${child.process}" görevine başlayabilirsiniz.`,
+                        type: 'dependency',
+                        action_link: '/tasks',
+                        created_at: new Date().toISOString()
+                    }))
+                    await supabase.from('notifications').insert(notifications)
+                }
+            }
+        }
+
         fetchData()
         setIsStatusModalOpen(false)
         setStatusUpdate({ status: '', note: '' })
@@ -216,6 +257,55 @@ export default function Tasks() {
             if (error) alert(error.message)
             fetchData()
         }
+    }
+
+    const handleDragStart = (e, op) => {
+        setDraggedOp(op)
+        e.dataTransfer.setData('opId', op.id)
+        e.currentTarget.style.opacity = '0.4'
+    }
+
+    const handleDragEnd = (e) => {
+        e.currentTarget.style.opacity = '1'
+    }
+
+    const handleDrop = async (e, targetPersonName) => {
+        e.preventDefault()
+        if (!draggedOp) return
+
+        // Atanmamış sütununa sürüklenirse atamayı kaldır
+        if (targetPersonName === 'Atanmamış') {
+            const { error } = await supabase.from('operations').update({
+                responsible_person: null,
+                responsible_person_id: null
+            }).eq('id', draggedOp.id)
+
+            if (!error) fetchData()
+            setDraggedOp(null)
+            return
+        }
+
+        const targetMember = members.find(m => m.full_name === targetPersonName)
+        if (!targetMember) return
+
+        if (draggedOp.responsible_person_id === targetMember.id) {
+            setDraggedOp(null)
+            return
+        }
+
+        const { error } = await supabase.from('operations').update({
+            responsible_person: targetMember.full_name,
+            responsible_person_id: targetMember.id,
+            responsible_dept: targetMember.department // Departmanı da güncelle (farklı departmandaki birine atamış olabiliriz)
+        }).eq('id', draggedOp.id)
+
+        if (error) {
+            console.error('Update failure:', error)
+            alert('Atama güncellenemedi: ' + error.message)
+        } else {
+            fetchData()
+        }
+        setDraggedOp(null)
     }
 
     const getStatusColor = (status) => {
@@ -375,7 +465,21 @@ export default function Tasks() {
                 {activeDept && viewType === 'kanban' && (
                     <div style={{ display: 'flex', gap: '1.5rem', overflowX: 'auto', alignItems: 'flex-start', paddingBottom: '2rem' }}>
                         {Object.entries(groupedData).map(([person, ops]) => (
-                            <div key={person} style={{ minWidth: '350px', maxWidth: '350px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', display: 'flex', flexDirection: 'column', maxHeight: '75vh' }}>
+                            <div
+                                key={person}
+                                onDragOver={(e) => {
+                                    e.preventDefault()
+                                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.05)'
+                                }}
+                                onDragLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+                                }}
+                                onDrop={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+                                    handleDrop(e, person)
+                                }}
+                                style={{ minWidth: '350px', maxWidth: '350px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', display: 'flex', flexDirection: 'column', maxHeight: '75vh', transition: 'all 0.2s' }}
+                            >
                                 <div style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.01)', borderTopLeftRadius: '16px', borderTopRightRadius: '16px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                         <div style={{ background: 'var(--primary)', color: 'white', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{person.charAt(0)}</div>
@@ -389,7 +493,14 @@ export default function Tasks() {
                                     {ops.map(op => {
                                         const dateStyle = getTargetDateStyle(op.target_date)
                                         return (
-                                            <div key={op.id} className="card" style={{ padding: '1rem', background: 'var(--card)', border: '1px solid var(--border)', borderLeft: `4px solid ${op.status === 'İşlemde' ? '#3b82f6' : '#facc15'}`, position: 'relative' }}>
+                                            <div
+                                                key={op.id}
+                                                className="card"
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, op)}
+                                                onDragEnd={handleDragEnd}
+                                                style={{ padding: '1rem', background: 'var(--card)', border: '1px solid var(--border)', borderLeft: `4px solid ${op.status === 'İşlemde' ? '#3b82f6' : '#facc15'}`, position: 'relative', cursor: 'grab' }}
+                                            >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                                                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)' }}>{op.order_id}</span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
