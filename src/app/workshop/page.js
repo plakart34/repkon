@@ -32,7 +32,10 @@ import {
     Edit3,
     Trash2,
     MoreVertical,
-    Check
+    Check,
+    FileSpreadsheet, // Added for export functionality
+    Download, // Added for export functionality
+    ChevronDown // Added as per instruction snippet
 } from 'lucide-react'
 
 const getToday = () => {
@@ -41,6 +44,7 @@ const getToday = () => {
 
 export default function WorkshopPage() {
     const { profile, loading: authLoading } = usePermissions()
+    const isAdmin = profile?.roles?.name === 'Admin'
     const [projects, setProjects] = useState([])
     const [selectedProjectId, setSelectedProjectId] = useState('')
     const [timelineData, setTimelineData] = useState([])
@@ -300,6 +304,36 @@ export default function WorkshopPage() {
         setIsDeleteModalOpen(true);
     }
 
+    const handleExportExcel = () => {
+        const header = ["İş Emri No", "Proje", "Makine", "Parça", "İşlem", "Sorumlu Bölüm", "Sorumlu Kişi", "Statü", "Hedef Tarih", "Oluşturulma"];
+        const rows = operations.map(op => [
+            op.order_id,
+            op.project_name,
+            op.machine_name,
+            op.bom_code || '-',
+            `"${op.process.replace(/"/g, '""')}"`,
+            op.responsible_dept,
+            op.responsible_person || '-',
+            op.status,
+            op.target_date ? new Date(op.target_date).toLocaleDateString('tr-TR') : '-',
+            new Date(op.created_at).toLocaleString('tr-TR')
+        ]);
+
+        const csvContent = [
+            header.join(";"),
+            ...rows.map(row => row.join(";"))
+        ].join("\n");
+
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `RMK_Calistay_Raporu_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const confirmDelete = async () => {
         if (!deletingOpId) return;
         const opToDelete = operations.find(o => o.id === deletingOpId);
@@ -415,19 +449,39 @@ export default function WorkshopPage() {
                     pointerEvents: 'none',
                     marginBottom: '-3.5rem' // Header yüksekliği kadar negatif margin ile header üzerine bindir
                 }}>
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => setIsLogModalOpen(true)}
-                        style={{
-                            pointerEvents: 'auto',
-                            boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5)',
-                            padding: '0.8rem 1.5rem',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(255, 255, 255, 0.1)'
-                        }}
-                    >
-                        <Play size={18} fill="currentColor" style={{ marginRight: '0.5rem' }} /> Yeni Aksiyon Başlat
-                    </button>
+                    <div style={{ pointerEvents: 'auto', display: 'flex', gap: '0.75rem' }}>
+                        {(isAdmin || profile?.roles?.permissions?.includes('export_workshop')) && (
+                            <button
+                                className="btn"
+                                onClick={handleExportExcel}
+                                style={{
+                                    background: 'var(--secondary)',
+                                    color: 'white',
+                                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)',
+                                    padding: '0.8rem 1.25rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                    display: 'flex',
+                                    gap: '0.5rem',
+                                    alignItems: 'center'
+                                }}
+                            >
+                                <FileSpreadsheet size={18} color="#4ade80" /> <span style={{ fontWeight: 600 }}>Rapor İndir (Excel)</span>
+                            </button>
+                        )}
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => setIsLogModalOpen(true)}
+                            style={{
+                                boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5)',
+                                padding: '0.8rem 1.5rem',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}
+                        >
+                            <Play size={18} fill="currentColor" style={{ marginRight: '0.5rem' }} /> Yeni Aksiyon Başlat
+                        </button>
+                    </div>
                 </div>
 
                 <header className="header" style={{ marginBottom: '2.5rem' }}>

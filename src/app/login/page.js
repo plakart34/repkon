@@ -62,7 +62,7 @@ export default function Login() {
                                 style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: 'none', borderRadius: 'var(--radius)', padding: '0.75rem 0.75rem 0.75rem 2.5rem', outline: 'none' }}
                                 value={email}
                                 onChange={e => setEmail(e.target.value)}
-                                placeholder="Örn: admin@repkon.com.tr"
+                                placeholder=""
                             />
                             <Mail size={16} style={{ position: 'absolute', left: '0.75rem', top: '1rem', color: 'var(--muted-foreground)' }} />
                         </div>
