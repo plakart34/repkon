@@ -94,14 +94,14 @@ function TeamContent() {
                 role_id: formData.role_id === '' ? null : formData.role_id
             }
 
-            if (editingStaff) {
-                const { error } = await supabase.from('profiles').update(data).eq('id', editingStaff.id)
-                if (error) throw error
-            } else {
-                // 1. Önce Supabase Auth'a Kaydet
+            let finalId = editingStaff?.id;
+
+            // If system access is enabled, we need a Supabase Auth account
+            if (formData.can_login) {
+                // Try to create/find the auth account
                 const { data: authData, error: authError } = await supabase.auth.signUp({
                     email: formData.email,
-                    password: formData.password,
+                    password: formData.password || '12345678', // Default if empty
                     options: {
                         data: {
                             full_name: formData.full_name,
@@ -110,15 +110,28 @@ function TeamContent() {
                     }
                 })
 
-                if (authError) throw authError
+                // If error is not "User already registered", throw it
+                if (authError && !authError.message.includes('already registered')) {
+                    throw authError
+                }
 
-                // 2. Ardından Profiles Tablosunu GÜNCELLE (Trigger zaten satırı oluşturdu)
-                // UPSERT kullanarak hem yeni kaydı hem de mevcut kaydı garantiye alıyoruz
+                if (authData?.user) {
+                    finalId = authData.user.id;
+                }
+            }
+
+            if (editingStaff) {
+                const { error } = await supabase.from('profiles').update({
+                    ...data,
+                    id: finalId // Keep the ID consistent with Auth if possible
+                }).eq('id', editingStaff.id)
+                if (error) throw error
+            } else {
+                // For new users, if they have an auth account use that ID, otherwise let DB generate or handle
                 const { error: profileError } = await supabase.from('profiles').upsert([{
                     ...data,
-                    id: authData.user.id
+                    id: finalId || undefined
                 }])
-
                 if (profileError) throw profileError
             }
 
@@ -126,7 +139,7 @@ function TeamContent() {
             setIsStaffModalOpen(false)
             setEditingStaff(null)
             setFormData({ full_name: '', email: '', password: '', phone: '', extension: '', business_phone: '', task_description: '', role_id: '', can_login: false })
-            alert('Personel başarıyla kaydedildi ve giriş yetkisi verildi.')
+            alert('Personel bilgileri ve giriş yetkileri başarıyla güncellendi.')
         } catch (error) {
             alert('Hata: ' + error.message)
         } finally {
