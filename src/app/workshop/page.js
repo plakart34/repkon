@@ -441,51 +441,53 @@ export default function WorkshopPage() {
             <Sidebar profile={profile} />
 
             <main className="content animate-fade-in">
-                <div style={{
-                    position: 'sticky',
-                    top: '1.5rem',
-                    zIndex: 1100,
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    pointerEvents: 'none',
-                    marginBottom: '-3.5rem' // Header yüksekliği kadar negatif margin ile header üzerine bindir
-                }}>
-                    <div style={{ pointerEvents: 'auto', display: 'flex', gap: '0.75rem' }}>
-                        {(isAdmin || profile?.roles?.permissions?.includes('export_workshop')) && (
-                            <button
-                                className="btn"
-                                onClick={handleExportExcel}
-                                style={{
-                                    background: 'var(--secondary)',
-                                    color: 'white',
-                                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)',
-                                    padding: '0.8rem 1.25rem',
-                                    borderRadius: '12px',
-                                    border: '1px solid rgba(255, 255, 255, 0.05)',
-                                    display: 'flex',
-                                    gap: '0.5rem',
-                                    alignItems: 'center'
-                                }}
-                            >
-                                <FileSpreadsheet size={18} color="#4ade80" /> <span style={{ fontWeight: 600 }}>Rapor İndir (Excel)</span>
-                            </button>
-                        )}
-                        {(isAdmin || userPermissions.includes('create_operation')) && (
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => setIsLogModalOpen(true)}
-                                style={{
-                                    boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5)',
-                                    padding: '0.8rem 1.5rem',
-                                    borderRadius: '12px',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)'
-                                }}
-                            >
-                                <Play size={18} fill="currentColor" style={{ marginRight: '0.5rem' }} /> Yeni Aksiyon Başlat
-                            </button>
-                        )}
+                {((isAdmin || profile?.roles?.permissions?.includes('export_workshop')) || (isAdmin || userPermissions.includes('create_operation'))) && (
+                    <div style={{
+                        position: 'sticky',
+                        top: '1.5rem',
+                        zIndex: 1100,
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        pointerEvents: 'none',
+                        marginBottom: '-3.5rem' // Header yüksekliği kadar negatif margin ile header üzerine bindir
+                    }}>
+                        <div style={{ pointerEvents: 'auto', display: 'flex', gap: '0.75rem' }}>
+                            {(isAdmin || profile?.roles?.permissions?.includes('export_workshop')) && (
+                                <button
+                                    className="btn"
+                                    onClick={handleExportExcel}
+                                    style={{
+                                        background: 'var(--secondary)',
+                                        color: 'white',
+                                        boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)',
+                                        padding: '0.8rem 1.25rem',
+                                        borderRadius: '12px',
+                                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                                        display: 'flex',
+                                        gap: '0.5rem',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <FileSpreadsheet size={18} color="#4ade80" /> <span style={{ fontWeight: 600 }}>Rapor İndir (Excel)</span>
+                                </button>
+                            )}
+                            {(isAdmin || userPermissions.includes('create_operation')) && (
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={() => setIsLogModalOpen(true)}
+                                    style={{
+                                        boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5)',
+                                        padding: '0.8rem 1.5rem',
+                                        borderRadius: '12px',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)'
+                                    }}
+                                >
+                                    <Play size={18} fill="currentColor" style={{ marginRight: '0.5rem' }} /> Yeni Aksiyon Başlat
+                                </button>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <header className="header" style={{ marginBottom: '2.5rem' }}>
                     <div>
