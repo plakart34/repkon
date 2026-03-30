@@ -18,10 +18,13 @@ export default function Login() {
         setLoading(true)
         setError('')
 
+        // Append domain if not present
+        const fullEmail = email.includes('@') ? email : `${email}@repkon.com.tr`
+
         try {
             // Supabase Auth Login
             const { data, error: sbError } = await supabase.auth.signInWithPassword({
-                email,
+                email: fullEmail,
                 password
             })
 
@@ -30,7 +33,7 @@ export default function Login() {
                 window.location.href = '/'
                 return
             } else {
-                setError(sbError?.message || 'E-posta veya şifre hatalı.')
+                setError(sbError?.message || 'Kullanıcı adı veya şifre hatalı.')
             }
         } catch (err) {
             setError('Sistem hatası. Lütfen bağlantınızı kontrol edin.')
@@ -55,17 +58,38 @@ export default function Login() {
 
                 <form onSubmit={handleLogin}>
                     <div style={{ marginBottom: '1.25rem' }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>E-posta</label>
-                        <div style={{ position: 'relative' }}>
+                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Kullanıcı Adı</label>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <Mail size={16} style={{ position: 'absolute', left: '0.75rem', color: 'var(--muted-foreground)' }} />
                             <input
                                 required
-                                type="email"
-                                style={{ width: '100%', background: 'var(--secondary)', color: 'white', border: 'none', borderRadius: 'var(--radius)', padding: '0.75rem 0.75rem 0.75rem 2.5rem', outline: 'none' }}
+                                type="text"
+                                style={{
+                                    width: '100%',
+                                    background: 'var(--secondary)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: 'var(--radius)',
+                                    padding: '0.75rem 8.5rem 0.75rem 2.5rem',
+                                    outline: 'none',
+                                    fontSize: '0.9rem'
+                                }}
                                 value={email}
-                                onChange={e => setEmail(e.target.value)}
-                                placeholder=""
+                                onChange={e => setEmail(e.target.value.split('@')[0].toLowerCase())}
+                                placeholder="ad.soyad"
                             />
-                            <Mail size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
+                            <span style={{
+                                position: 'absolute',
+                                right: '0.75rem',
+                                color: 'var(--muted-foreground)',
+                                fontSize: '0.85rem',
+                                fontWeight: '500',
+                                pointerEvents: 'none',
+                                userSelect: 'none',
+                                opacity: 0.7
+                            }}>
+                                @repkon.com.tr
+                            </span>
                         </div>
                     </div>
 

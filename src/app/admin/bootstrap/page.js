@@ -28,10 +28,13 @@ function BootstrapForm() {
         setStatus('loading')
         setError('')
 
+        // Append domain if not present
+        const fullEmail = email.includes('@') ? email : `${email}@repkon.com.tr`
+
         try {
             // 1. Create User in Auth
             const { data: authData, error: authError } = await supabase.auth.signUp({
-                email,
+                email: fullEmail,
                 password,
                 options: {
                     data: {
@@ -63,7 +66,7 @@ function BootstrapForm() {
             const { error: profileError } = await supabase.from('profiles').upsert([{
                 id: newUser.id,
                 full_name: fullName,
-                email: email,
+                email: fullEmail,
                 role_id: adminRole.id,
                 can_login: true
             }])
@@ -113,10 +116,36 @@ function BootstrapForm() {
                         </div>
 
                         <div style={{ marginBottom: '1.25rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>E-posta</label>
-                            <div style={{ position: 'relative' }}>
-                                <input required type="email" style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.5rem' }} value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@repkon.com.tr" />
-                                <Mail size={16} style={{ position: 'absolute', left: '0.75rem', top: '1rem', color: 'var(--muted-foreground)' }} />
+                            <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Admin Kullanıcı Adı</label>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <Mail size={16} style={{ position: 'absolute', left: '0.75rem', color: 'var(--muted-foreground)' }} />
+                                <input
+                                    required
+                                    type="text"
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem 8.5rem 0.75rem 2.5rem',
+                                        background: 'var(--secondary)',
+                                        color: 'white',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: 'var(--radius)'
+                                    }}
+                                    value={email.split('@')[0]}
+                                    onChange={e => setEmail(e.target.value.split('@')[0].toLowerCase())}
+                                    placeholder="admin"
+                                />
+                                <span style={{
+                                    position: 'absolute',
+                                    right: '1rem',
+                                    color: 'var(--muted-foreground)',
+                                    fontSize: '0.85rem',
+                                    fontWeight: '500',
+                                    pointerEvents: 'none',
+                                    userSelect: 'none',
+                                    opacity: 0.7
+                                }}>
+                                    @repkon.com.tr
+                                </span>
                             </div>
                         </div>
 

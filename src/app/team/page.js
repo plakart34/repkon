@@ -98,9 +98,12 @@ function TeamContent() {
 
             // If system access is enabled, we need a Supabase Auth account
             if (formData.can_login) {
+                // Determine full email
+                const fullEmail = formData.email.includes('@') ? formData.email : `${formData.email}@repkon.com.tr`
+
                 // Try to create/find the auth account
                 const { data: authData, error: authError } = await supabase.auth.signUp({
-                    email: formData.email,
+                    email: fullEmail,
                     password: formData.password || '12345678', // Default if empty
                     options: {
                         data: {
@@ -120,18 +123,18 @@ function TeamContent() {
                 }
             }
 
+            const finalData = {
+                ...data,
+                email: data.email.includes('@') ? data.email : `${data.email}@repkon.com.tr`,
+                id: finalId || undefined
+            }
+
             if (editingStaff) {
-                const { error } = await supabase.from('profiles').update({
-                    ...data,
-                    id: finalId // Keep the ID consistent with Auth if possible
-                }).eq('id', editingStaff.id)
+                const { error } = await supabase.from('profiles').update(finalData).eq('id', editingStaff.id)
                 if (error) throw error
             } else {
                 // For new users, if they have an auth account use that ID, otherwise let DB generate or handle
-                const { error: profileError } = await supabase.from('profiles').upsert([{
-                    ...data,
-                    id: finalId || undefined
-                }])
+                const { error: profileError } = await supabase.from('profiles').upsert([finalData])
                 if (profileError) throw profileError
             }
 
@@ -451,15 +454,43 @@ function TeamContent() {
                                             setFormData({
                                                 ...formData,
                                                 full_name: val,
-                                                email: val ? `${emailBase}@repkon.com.tr` : ''
+                                                email: val ? emailBase : ''
                                             });
                                         }}
                                         placeholder="Örn: Ahmet Yılmaz"
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>E-posta Adresi</label>
-                                    <input required type="email" style={{ width: '100%', padding: '0.75rem', background: 'var(--secondary)', color: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="ahmet@rmk.com" />
+                                    <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Kullanıcı Adı</label>
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                        <input
+                                            required
+                                            type="text"
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.75rem 8.5rem 0.75rem 0.75rem',
+                                                background: 'var(--secondary)',
+                                                color: 'white',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: 'var(--radius)'
+                                            }}
+                                            value={formData.email?.split('@')[0] || ''}
+                                            onChange={e => setFormData({ ...formData, email: e.target.value.split('@')[0].toLowerCase() })}
+                                            placeholder="ad.soyad"
+                                        />
+                                        <span style={{
+                                            position: 'absolute',
+                                            right: '1rem',
+                                            color: 'var(--muted-foreground)',
+                                            fontSize: '0.85rem',
+                                            fontWeight: '500',
+                                            pointerEvents: 'none',
+                                            userSelect: 'none',
+                                            opacity: 0.7
+                                        }}>
+                                            @repkon.com.tr
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 

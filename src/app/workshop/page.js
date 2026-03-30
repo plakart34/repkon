@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useSearchParams, usePathname, useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import {
     Hammer,
@@ -39,15 +40,28 @@ import {
     AlertTriangle,
     CheckSquare,
     Square,
-    FastForward
+    FastForward,
+    MessageCircle
 } from 'lucide-react'
+import OperationChat from '@/components/OperationChat'
 
 const getToday = () => {
     return new Date().toISOString().split('T')[0];
 };
 
 export default function WorkshopPage() {
+    return (
+        <Suspense fallback={<div>Yükleniyor...</div>}>
+            <WorkshopContent />
+        </Suspense>
+    )
+}
+
+function WorkshopContent() {
     const { profile, loading: authLoading } = usePermissions()
+    const searchParams = useSearchParams()
+    const router = useRouter()
+
     const isAdmin = profile?.roles?.name === 'Admin'
     const userPermissions = profile?.roles?.permissions || []
 
@@ -81,6 +95,9 @@ export default function WorkshopPage() {
 
     const [selectedOp, setSelectedOp] = useState(null)
     const [statusUpdate, setStatusUpdate] = useState({ status: '', note: '' })
+
+    const [isChatModalOpen, setIsChatModalOpen] = useState(false)
+    const [selectedOpForChat, setSelectedOpForChat] = useState(null)
 
     const [filterSorumlu, setFilterSorumlu] = useState([])
     const [filterStatu, setFilterStatu] = useState([])
@@ -142,6 +159,7 @@ export default function WorkshopPage() {
                 setIsTimelineModalOpen(false); setSelectedOp(null); setActiveOpMenuId(null);
             }
         }
+
         const handleOutsideClick = () => {
             setActiveOpMenuId(null);
             ['proje-dropdown', 'makine-dropdown', 'sorumlu-dropdown', 'status-dropdown'].forEach(id => {
@@ -149,6 +167,7 @@ export default function WorkshopPage() {
                 if (dropdown) dropdown.style.display = 'none';
             });
         }
+
         window.addEventListener('click', handleOutsideClick)
         window.addEventListener('keydown', handleKeyDown)
         return () => {
@@ -156,6 +175,21 @@ export default function WorkshopPage() {
             window.removeEventListener('click', handleOutsideClick)
         }
     }, [profile])
+
+    const chatId = searchParams.get('chat')
+
+    // Deep link to chat when operations are loaded
+    useEffect(() => {
+        if (chatId && operations.length > 0) {
+            const op = operations.find(o => o.id === chatId);
+            if (op) {
+                setSelectedOpForChat(op);
+                setIsChatModalOpen(true);
+                // Clean up URL
+                router.replace('/workshop')
+            }
+        }
+    }, [chatId, operations]);
 
     useEffect(() => {
         const fetchMachines = async () => {
@@ -445,6 +479,27 @@ export default function WorkshopPage() {
                         created_at: new Date().toISOString()
                     }))
                     await supabase.from('notifications').insert(notifications)
+                }
+            } else if (statusUpdate.status === 'Durduruldu') {
+                const { data: roleData } = await supabase.from('roles').select('id').eq('name', 'Admin').single()
+
+                if (roleData) {
+                    const { data: adminProfiles } = await supabase
+                        .from('profiles')
+                        .select('id')
+                        .eq('role_id', roleData.id)
+
+                    if (adminProfiles && adminProfiles.length > 0) {
+                        const stopNotifs = adminProfiles.map(admin => ({
+                            user_id: admin.id,
+                            title: 'İş Durduruldu ⚠️',
+                            message: `"${selectedOp.order_id}" nolu iş "${profile.full_name}" tarafından durduruldu: "${statusUpdate.note || 'Sebep belirtilmedi'}"`,
+                            type: 'alert',
+                            action_link: '/workshop',
+                            created_at: new Date().toISOString()
+                        }))
+                        await supabase.from('notifications').insert(stopNotifs)
+                    }
                 }
             }
         }
@@ -1057,7 +1112,20 @@ export default function WorkshopPage() {
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                                                    <div style={{ position: 'relative' }}>
+                                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedOpForChat(op);
+                                                                setIsChatModalOpen(true);
+                                                            }}
+                                                            style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', padding: '0.4rem', borderRadius: '8px', transition: '0.2s' }}
+                                                            onMouseEnter={e => e.currentTarget.style.color = 'var(--primary)'}
+                                                            onMouseLeave={e => e.currentTarget.style.color = 'var(--muted-foreground)'}
+                                                            title="İş Notları & Sohbet"
+                                                        >
+                                                            <MessageCircle size={18} />
+                                                        </button>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -1385,6 +1453,13 @@ export default function WorkshopPage() {
                                     >
                                         <Activity size={14} color="var(--primary)" /> Süreç Geçmişi
                                     </button>
+                                    <button
+                                        onClick={() => { setSelectedOpForChat(op); setIsChatModalOpen(true); setActiveOpMenuId(null); }}
+                                        style={{ ...itemStyle }}
+                                        className="nav-item-mini"
+                                    >
+                                        <MessageCircle size={14} color="var(--primary)" /> İş Notları (Sohbet)
+                                    </button>
                                     {(isAdmin || userPermissions.includes('delete_operation')) && (
                                         <>
                                             <div style={{ height: '1px', background: 'var(--border)', margin: '0.3rem 0' }} />
@@ -1464,6 +1539,15 @@ export default function WorkshopPage() {
                     </div>
                 </div>,
                 document.body
+            )}
+
+            {/* Operation Chat Modal */}
+            {isChatModalOpen && selectedOpForChat && (
+                <OperationChat
+                    operation={selectedOpForChat}
+                    profile={profile}
+                    onClose={() => { setIsChatModalOpen(false); setSelectedOpForChat(null); }}
+                />
             )}
         </div>
     )

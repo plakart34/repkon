@@ -76,11 +76,13 @@ export default function RegisterStaff() {
 
     const handleRegister = async (e) => {
         e.preventDefault()
+        const fullEmail = formData.email.includes('@') ? formData.email : `${formData.email}@repkon.com.tr`
+
         try {
             let authId = null;
             if (formData.can_login) {
                 const { data: authUser, error: authErr } = await supabase.auth.signUp({
-                    email: formData.email,
+                    email: fullEmail,
                     password: formData.password,
                     options: {
                         data: {
@@ -96,7 +98,7 @@ export default function RegisterStaff() {
                 id: authId || undefined, // Supabase allows null or let it be if not can_login? 
                 // Wait, if not can_login, I should still have a record.
                 full_name: formData.full_name,
-                email: formData.email,
+                email: fullEmail,
                 phone: formData.phone,
                 extension: formData.extension,
                 business_phone: formData.business_phone,
@@ -333,8 +335,27 @@ export default function RegisterStaff() {
                                         <input required style={{ width: '100%', padding: '0.75rem' }} value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} placeholder="Örn: Ahmet Yılmaz" />
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>E-posta Adresi</label>
-                                        <input required type="email" style={{ width: '100%', padding: '0.75rem' }} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="ahmet@rmk.com" />
+                                        <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Kullanıcı Adı</label>
+                                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                            <input
+                                                required
+                                                type="text"
+                                                style={{ width: '100%', padding: '0.75rem 8.5rem 0.75rem 0.75rem' }}
+                                                value={formData.email}
+                                                onChange={e => setFormData({ ...formData, email: e.target.value.split('@')[0].toLowerCase() })}
+                                                placeholder="ad.soyad"
+                                            />
+                                            <span style={{
+                                                position: 'absolute',
+                                                right: '1rem',
+                                                color: 'var(--muted-foreground)',
+                                                fontSize: '0.85rem',
+                                                pointerEvents: 'none',
+                                                userSelect: 'none'
+                                            }}>
+                                                @repkon.com.tr
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 

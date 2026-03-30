@@ -15,7 +15,9 @@ import {
     Sun,
     Moon,
     Monitor,
-    History
+    History,
+    Bell,
+    Check
 } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -44,9 +46,52 @@ export default function Sidebar({ profile }) {
         setDepartments(deptData?.map(d => d.name) || [])
     }
 
+    const [notifications, setNotifications] = useState([])
+    const [unreadNotifCount, setUnreadNotifCount] = useState(0)
+    const [isNotifOpen, setIsNotifOpen] = useState(false)
+
+    const fetchNotifications = async () => {
+        if (!profile) return
+        const { data } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', profile.id)
+            .order('created_at', { ascending: false })
+            .limit(10)
+        setNotifications(data || [])
+        setUnreadNotifCount(data?.filter(n => !n.is_read).length || 0)
+    }
+
+    const markAsRead = async (notifId) => {
+        await supabase.from('notifications').update({ is_read: true }).eq('id', notifId)
+        fetchNotifications()
+    }
+
+    const markAllAsRead = async () => {
+        if (!profile) return
+        await supabase.from('notifications').update({ is_read: true }).eq('user_id', profile.id)
+        fetchNotifications()
+    }
+
     useEffect(() => {
         if (profile) {
             fetchData()
+            fetchNotifications()
+
+            // Realtime Notifications
+            const channel = supabase
+                .channel(`notif_realtime_${profile.id}`)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'notifications',
+                    filter: `user_id=eq.${profile.id}`
+                }, () => {
+                    fetchNotifications()
+                })
+                .subscribe()
+
+            return () => supabase.removeChannel(channel)
         }
         const savedTheme = localStorage.getItem('rmk_theme') || 'dark'
         setTheme(savedTheme)
@@ -143,7 +188,83 @@ export default function Sidebar({ profile }) {
     return (
         <>
             <aside className="sidebar">
-                <h1 onClick={() => router.push('/')} style={{ cursor: 'pointer', marginBottom: '2.5rem' }}>RMK Tracker</h1>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2.5rem' }}>
+                    <h1 onClick={() => router.push('/')} style={{ cursor: 'pointer', margin: 0 }}>RMK Tracker</h1>
+
+                    {/* Notification Bell */}
+                    <div style={{ position: 'relative' }}>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setIsNotifOpen(!isNotifOpen); }}
+                            style={{
+                                background: 'none', border: 'none', color: unreadNotifCount > 0 ? 'var(--primary)' : 'var(--muted-foreground)',
+                                cursor: 'pointer', padding: '0.4rem', borderRadius: '8px',
+                                transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <Bell size={20} fill={unreadNotifCount > 0 ? 'var(--primary)' : 'none'} />
+                            {unreadNotifCount > 0 && (
+                                <span style={{
+                                    position: 'absolute', top: '0', right: '0',
+                                    minWidth: '16px', height: '16px', background: '#ef4444',
+                                    borderRadius: '50%', border: '2px solid #09090b',
+                                    fontSize: '9px', fontWeight: 900, color: 'white',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}>{unreadNotifCount}</span>
+                            )}
+                        </button>
+
+                        {isNotifOpen && (
+                            <div
+                                className="card animate-scale-in"
+                                style={{
+                                    position: 'absolute', top: '100%', left: '0', zIndex: 2000,
+                                    width: '320px', background: 'var(--card)', border: '1px solid var(--border)',
+                                    marginTop: '0.5rem', padding: '1rem', borderRadius: '16px',
+                                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+                                }}
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                    <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700 }}>Bildirimler</h4>
+                                    <button
+                                        onClick={markAllAsRead}
+                                        style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+                                    >
+                                        Tümünü Oku
+                                    </button>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
+                                    {notifications.length === 0 ? (
+                                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.8rem' }}>Bildirim yok.</div>
+                                    ) : (
+                                        notifications.map(n => (
+                                            <div
+                                                key={n.id}
+                                                onClick={() => { markAsRead(n.id); if (n.action_link) router.push(n.action_link); setIsNotifOpen(false); }}
+                                                style={{
+                                                    padding: '0.75rem', borderRadius: '10px', background: n.is_read ? 'transparent' : 'rgba(59, 130, 246, 0.05)',
+                                                    cursor: 'pointer', border: '1px solid', borderColor: n.is_read ? 'transparent' : 'rgba(59, 130, 246, 0.1)',
+                                                    transition: '0.2s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = n.is_read ? 'transparent' : 'rgba(59, 130, 246, 0.05)'}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: n.is_read ? 'transparent' : 'var(--primary)' }} />
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white text-primary' }}>{n.title}</span>
+                                                </div>
+                                                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted-foreground)', lineHeight: '1.4' }}>{n.message}</p>
+                                                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.2)', marginTop: '0.4rem' }}>{new Date(n.created_at).toLocaleString('tr-TR')}</div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
 
                 <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     {navItems.map(item => {
