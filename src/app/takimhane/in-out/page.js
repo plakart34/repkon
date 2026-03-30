@@ -147,18 +147,13 @@ export default function ToolroomInOutPage() {
                                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: '0.2s' }}>
                                     <td style={{ padding: '1rem', fontSize: '0.8rem', opacity: 0.5 }}>{t.sequence_no}</td>
                                     <td style={{ padding: '1rem' }}>
-                                        <span style={{
-                                            padding: '0.2rem 0.5rem',
-                                            borderRadius: '6px',
-                                            fontSize: '0.7rem',
-                                            fontWeight: 800,
-                                            background: t.transaction_type === 'Giriş' ? 'rgba(74, 222, 128, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                            color: t.transaction_type === 'Giriş' ? '#4ade80' : '#ef4444',
-                                            border: '1px solid',
-                                            borderColor: t.transaction_type === 'Giriş' ? 'rgba(74, 222, 128, 0.2)' : 'rgba(239, 68, 68, 0.2)'
+                                        <div style={{
+                                            fontSize: '0.8rem',
+                                            fontWeight: 700,
+                                            color: t.transaction_type === 'Giriş' ? '#4ade80' : '#ef4444'
                                         }}>
                                             {t.transaction_type}
-                                        </span>
+                                        </div>
                                     </td>
                                     <td style={{ padding: '1rem', fontSize: '0.8rem', fontWeight: 600 }}>{t.item_no || '-'}</td>
                                     <td style={{ padding: '1rem', fontSize: '0.8rem' }}>{t.item_description}</td>
