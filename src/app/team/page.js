@@ -235,7 +235,7 @@ function TeamContent() {
                         )}
                     </div>
                 </header>
-                <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
+                <section className="stats-grid" style={{ marginBottom: '3rem' }}>
                     <div className="card">
                         <div style={{ padding: '0.6rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', borderRadius: '0.5rem', width: 'fit-content', marginBottom: '1rem' }}>
                             <Building size={24} />
@@ -432,7 +432,7 @@ function TeamContent() {
                         </div>
 
                         <form onSubmit={handleRegister}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                            <div className="project-grid" style={{ marginBottom: '3rem', gridTemplateColumns: '1fr 1fr' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '0.5rem' }}>Ad Soyad</label>
                                     <input

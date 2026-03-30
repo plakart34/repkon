@@ -587,7 +587,7 @@ function WorkshopContent() {
                 </header>
 
                 {/* Top Summary Stats */}
-                <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
+                <section className="stats-grid" style={{ marginBottom: '2rem' }}>
                     <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.02)' }}>
                         <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '0.75rem', borderRadius: '12px', color: '#3b82f6' }}>
                             <LayoutDashboard size={24} />
@@ -684,7 +684,7 @@ function WorkshopContent() {
                             />
                         </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', alignItems: 'end' }}>
+                    <div className="filter-grid" style={{ alignItems: 'end' }}>
                         {[
                             { id: 'proje-dropdown', label: 'Proje', value: filterProje, setter: setFilterProje, options: Array.from(new Set(operations.map(o => o.project_name))), placeholder: 'Tüm Projeler' },
                             { id: 'makine-dropdown', label: 'Makine (Model)', value: filterMakine, setter: setFilterMakine, options: Array.from(new Set(operations.map(o => `${o.machine_name} (${o.machine_model || '-'})`))), placeholder: 'Tüm Makineler' },
@@ -956,7 +956,7 @@ function WorkshopContent() {
                         <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 400 }}>({filteredOperations.length} sonuç listeleniyor)</span>
                     </div>
 
-                    <div className="card" style={{ padding: 0, overflow: 'visible', position: 'relative' }}>
+                    <div className="card table-container" style={{ padding: 0, overflow: 'visible', position: 'relative' }}>
                         {filteredOperations.length === 0 ? (
                             <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>
                                 {operations.length > 0 ? 'Filtrelere uygun aksiyon bulunamadı.' : 'Henüz bir aksiyon bulunmuyor.'}

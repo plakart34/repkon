@@ -175,7 +175,7 @@ export default function UnifiedHome() {
         </header>
 
         {/* --- Row 1: Quick Stats --- */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem', marginBottom: '2rem' }}>
+        <div className="stats-grid" style={{ marginBottom: '2rem' }}>
           {[
             { label: 'Vadesi Geçmiş', value: stats.delayedOps, icon: AlertTriangle, color: '#ef4444', sub: 'Kritik müdahale bekleyen' },
             { label: 'Tamamlanan', value: stats.completedOps, icon: CheckCircle2, color: '#4ade80', sub: 'Başarıyla sonuçlanan' },
@@ -194,7 +194,7 @@ export default function UnifiedHome() {
         </div>
 
         {/* --- Row 2: Charts & Analysis --- */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="responsive-grid" style={{ marginBottom: '2rem' }}>
 
           {/* Project Progress Graph */}
           <div className="card" style={{ padding: '1.5rem' }}>
@@ -240,7 +240,7 @@ export default function UnifiedHome() {
         </div>
 
         {/* --- Row 3: Project List & Overdue Alerts --- */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '1.5rem' }}>
+        <div className="responsive-grid">
 
           {/* Project List */}
           <div className="card" style={{ padding: '0', overflow: 'hidden' }}>

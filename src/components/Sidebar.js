@@ -411,7 +411,7 @@ export default function Sidebar({ profile }) {
                         )
                     })}
                 </nav>
-                <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                <div className="sidebar-footer" style={{ marginTop: 'auto', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
                     <div className="sidebar-only" style={{ marginBottom: '1rem', padding: '0 0.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', background: 'var(--secondary)', padding: '0.3rem', borderRadius: 'var(--radius)' }}>
                             <button
