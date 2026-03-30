@@ -51,13 +51,14 @@ export default function Chat({ profile }) {
     }
 
     const fetchMessages = async () => {
+        const currentUser = selectedUserRef.current
         let query = supabase
             .from('chat_messages')
             .select('*, sender:profiles!sender_id(full_name, email)')
             .order('created_at', { ascending: true })
 
-        if (selectedUser) {
-            query = query.or(`and(sender_id.eq.${profile.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${profile.id})`)
+        if (currentUser) {
+            query = query.or(`and(sender_id.eq.${profile.id},receiver_id.eq.${currentUser.id}),and(sender_id.eq.${currentUser.id},receiver_id.eq.${profile.id})`)
         } else {
             query = query.is('receiver_id', null)
         }
