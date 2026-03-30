@@ -1,0 +1,17 @@
+{
+    "name": "RMK Tracker Production",
+    "short_name": "RMK Tracker",
+    "description": "Premium Manufacturing & Operation Tracking System",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#09090b",
+    "theme_color": "#3b82f6",
+    "icons": [
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
