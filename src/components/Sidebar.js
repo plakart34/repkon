@@ -17,7 +17,8 @@ import {
     Monitor,
     History,
     Bell,
-    Check
+    Check,
+    Archive
 } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -168,7 +169,8 @@ export default function Sidebar({ profile }) {
         '/workshop': 'view_workshop',
         '/tasks': 'view_tasks',
         '/logs': 'view_logs',
-        '/team': 'view_team'
+        '/team': 'view_team',
+        '/takimhane': 'view_toolroom'
     }
 
     const canSee = (path) => isAdmin || permissions.includes(permissionMap[path])
@@ -190,7 +192,8 @@ export default function Sidebar({ profile }) {
             icon: Users,
             hasSubmenu: true,
             submenuType: 'team'
-        }
+        },
+        { name: 'Takımhane', path: '/takimhane', icon: Archive }
     ]
 
     return (
