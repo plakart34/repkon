@@ -31,6 +31,7 @@ export default function Sidebar({ profile }) {
     const router = useRouter()
     const [isProjectsExpanded, setIsProjectsExpanded] = useState(pathname.startsWith('/projects'))
     const [isTeamExpanded, setIsTeamExpanded] = useState(pathname.startsWith('/team') || pathname === '/register-staff')
+    const [isToolroomExpanded, setIsToolroomExpanded] = useState(pathname.startsWith('/takimhane'))
     const [projects, setProjects] = useState([])
     const [departments, setDepartments] = useState([])
     const [theme, setTheme] = useState('dark')
@@ -170,7 +171,9 @@ export default function Sidebar({ profile }) {
         '/tasks': 'view_tasks',
         '/logs': 'view_logs',
         '/team': 'view_team',
-        '/takimhane': 'view_toolroom'
+        '/takimhane': 'view_toolroom',
+        '/takimhane/in-out': 'view_toolroom',
+        '/takimhane/datesheet': 'view_toolroom'
     }
 
     const canSee = (path) => isAdmin || permissions.includes(permissionMap[path])
@@ -185,7 +188,13 @@ export default function Sidebar({ profile }) {
         },
         { name: 'Çalıştay', path: '/workshop', icon: Hammer },
         { name: 'İş Takibi', path: '/tasks', icon: CheckSquare },
-        { name: 'Takımhane', path: '/takimhane', icon: Archive },
+        {
+            name: 'Takımhane',
+            path: '/takimhane',
+            icon: Archive,
+            hasSubmenu: true,
+            submenuType: 'toolroom'
+        },
         { name: 'Log Kayıtları', path: '/logs', icon: History },
         {
             name: 'Ekip Yönetimi',
@@ -298,9 +307,26 @@ export default function Sidebar({ profile }) {
                             (item.submenuType === 'team' && pathname === '/register-staff')
 
                         if (item.hasSubmenu) {
-                            const isExpanded = item.submenuType === 'team' ? isTeamExpanded : isProjectsExpanded
-                            const toggleExpand = () => item.submenuType === 'team' ? setIsTeamExpanded(!isTeamExpanded) : setIsProjectsExpanded(!isProjectsExpanded)
-                            const subItems = item.submenuType === 'team' ? departments : projects
+                            let isExpanded = false
+                            let toggleExpand = () => { }
+                            let subItems = []
+
+                            if (item.submenuType === 'team') {
+                                isExpanded = isTeamExpanded
+                                toggleExpand = () => setIsTeamExpanded(!isTeamExpanded)
+                                subItems = departments
+                            } else if (item.submenuType === 'toolroom') {
+                                isExpanded = isToolroomExpanded
+                                toggleExpand = () => setIsToolroomExpanded(!isToolroomExpanded)
+                                subItems = [
+                                    { name: 'Giriş-Çıkış', path: '/takimhane/in-out' },
+                                    { name: 'Datesheet', path: '/takimhane/datesheet' }
+                                ]
+                            } else {
+                                isExpanded = isProjectsExpanded
+                                toggleExpand = () => setIsProjectsExpanded(!isProjectsExpanded)
+                                subItems = projects
+                            }
 
                             return (
                                 <div key={item.path} style={{ display: 'flex', flexDirection: 'column' }}>
@@ -329,7 +355,7 @@ export default function Sidebar({ profile }) {
                                                     textDecoration: 'none'
                                                 }}
                                             >
-                                                {item.submenuType === 'team' ? 'Departman / Tüm Ekip' : 'Tüm Projeler'}
+                                                {item.submenuType === 'team' ? 'Departman / Tüm Ekip' : item.submenuType === 'toolroom' ? 'Takımhane Paneli' : 'Tüm Projeler'}
                                             </a>
 
                                             {item.submenuType === 'team' && isAdmin && (
@@ -372,6 +398,27 @@ export default function Sidebar({ profile }) {
                                                     >
                                                         <FolderOpen size={14} style={{ color: '#3b82f6' }} /> <span>{dept}</span>
                                                     </div>
+                                                ))
+                                            ) : item.submenuType === 'toolroom' ? (
+                                                subItems.map(sub => (
+                                                    <a
+                                                        key={sub.path}
+                                                        href={sub.path}
+                                                        style={{
+                                                            fontSize: '0.85rem',
+                                                            padding: '0.5rem 0.75rem',
+                                                            color: pathname === sub.path ? 'white' : 'var(--muted-foreground)',
+                                                            fontWeight: pathname === sub.path ? 600 : 400,
+                                                            textDecoration: 'none',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.5rem',
+                                                            background: pathname === sub.path ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                                                            borderRadius: 'var(--radius)'
+                                                        }}
+                                                    >
+                                                        <ChevronRight size={14} style={{ opacity: 0.5 }} /> <span>{sub.name}</span>
+                                                    </a>
                                                 ))
                                             ) : (
                                                 projects.map(proj => (
