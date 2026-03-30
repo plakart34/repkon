@@ -198,7 +198,7 @@ function TeamContent() {
 
     const handleDeleteDept = async (dept) => {
         if (confirm(`${dept.name} klasörünü silmek istediğinize emin misiniz?`)) {
-            const { error } = await supabase.from('depts').delete().eq('id', dept.id)
+            const { error } = await supabase.from('depts').delete().eq('name', dept.name)
             if (error) alert(error.message)
             fetchData()
         }

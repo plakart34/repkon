@@ -173,7 +173,8 @@ export default function Sidebar({ profile }) {
         '/team': 'view_team',
         '/takimhane': 'view_toolroom',
         '/takimhane/in-out': 'view_toolroom',
-        '/takimhane/datesheet': 'view_toolroom'
+        '/takimhane/datesheet': 'view_toolroom',
+        '/takimhane/stock': 'view_toolroom'
     }
 
     const canSee = (path) => isAdmin || permissions.includes(permissionMap[path])
@@ -320,7 +321,9 @@ export default function Sidebar({ profile }) {
                                 toggleExpand = () => setIsToolroomExpanded(!isToolroomExpanded)
                                 subItems = [
                                     { name: 'Giriş-Çıkış', path: '/takimhane/in-out' },
-                                    { name: 'Datesheet', path: '/takimhane/datesheet' }
+                                    { name: 'Stok Durumu', path: '/takimhane/stock' },
+                                    { name: 'Datesheet', path: '/takimhane/datesheet' },
+                                    { name: 'Tanımlamalar', path: '/takimhane/definitions' }
                                 ]
                             } else {
                                 isExpanded = isProjectsExpanded
