@@ -1,16 +1,18 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Send, X, MessageSquare, User, Trash2 } from 'lucide-react'
+import { Send, X, MessageSquare, User, Trash2, Paperclip, Image as ImageIcon, FileText, Loader2 } from 'lucide-react'
 
 export default function OperationChat({ operation, profile, onClose }) {
     const [messages, setMessages] = useState([])
     const [newMessage, setNewMessage] = useState('')
     const [loading, setLoading] = useState(false)
+    const [uploading, setUploading] = useState(false)
     const [profiles, setProfiles] = useState([])
     const [showMentions, setShowMentions] = useState(false)
     const [mentionSearch, setMentionSearch] = useState('')
     const messagesEndRef = useRef(null)
+    const fileInputRef = useRef(null)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -142,6 +144,44 @@ export default function OperationChat({ operation, profile, onClose }) {
         await supabase.from('operation_comments').delete().eq('id', msgId)
     }
 
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        setUploading(true)
+        try {
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`
+            const filePath = `${operation.id}/${fileName}`
+
+            const { error: uploadError, data } = await supabase.storage
+                .from('chat-attachments')
+                .upload(filePath, file)
+
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('chat-attachments')
+                .getPublicUrl(filePath)
+
+            // Auto send message with attachment
+            const { error: insertError } = await supabase.from('operation_comments').insert([{
+                operation_id: operation.id,
+                user_id: profile.id,
+                content: file.name,
+                file_url: publicUrl,
+                file_type: file.type
+            }])
+
+            if (insertError) throw insertError
+
+        } catch (error) {
+            alert('Dosya yükleme hatası: ' + error.message)
+        } finally {
+            setUploading(false)
+        }
+    }
+
     if (!operation) return null
 
     return (
@@ -188,15 +228,44 @@ export default function OperationChat({ operation, profile, onClose }) {
                                         borderRadius: isMe ? '1rem 1rem 0 1rem' : '1rem 1rem 1rem 0',
                                         fontSize: '0.9rem',
                                         boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-                                        wordBreak: 'break-word'
+                                        wordBreak: 'break-word',
+                                        overflow: 'hidden'
                                     }}>
-                                        {m.content.split(/(@\[[^\]]+\])/g).map((part, i) => {
-                                            if (part.startsWith('@[') && part.endsWith(']')) {
-                                                const name = part.match(/@\[([^\]]+)\]/)[1]
-                                                return <strong key={i} style={{ color: isMe ? '#fff' : 'var(--primary)', textShadow: isMe ? '0 0 10px rgba(255,255,255,0.3)' : 'none' }}>@{name}</strong>
-                                            }
-                                            return part
-                                        })}
+                                        {m.file_url ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                {m.file_type?.startsWith('image/') ? (
+                                                    <a href={m.file_url} target="_blank" rel="noreferrer">
+                                                        <img
+                                                            src={m.file_url}
+                                                            alt="attachment"
+                                                            style={{ maxWidth: '100%', borderRadius: '8px', cursor: 'pointer', display: 'block' }}
+                                                        />
+                                                    </a>
+                                                ) : (
+                                                    <a
+                                                        href={m.file_url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                                            color: 'inherit', textDecoration: 'none', background: 'rgba(0,0,0,0.1)',
+                                                            padding: '0.5rem', borderRadius: '8px'
+                                                        }}
+                                                    >
+                                                        <FileText size={20} />
+                                                        <span style={{ fontSize: '0.8rem' }}>{m.content || 'Dosyayı Görüntüle'}</span>
+                                                    </a>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            m.content.split(/(@\[[^\]]+\])/g).map((part, i) => {
+                                                if (part.startsWith('@[') && part.endsWith(']')) {
+                                                    const name = part.match(/@\[([^\]]+)\]/)[1]
+                                                    return <strong key={i} style={{ color: isMe ? '#fff' : 'var(--primary)', textShadow: isMe ? '0 0 10px rgba(255,255,255,0.3)' : 'none' }}>@{name}</strong>
+                                                }
+                                                return part
+                                            })
+                                        )}
                                     </div>
                                     <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.2)', marginTop: '0.2rem', textAlign: isMe ? 'right' : 'left' }}>
                                         {new Date(m.created_at).toLocaleString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
@@ -243,7 +312,26 @@ export default function OperationChat({ operation, profile, onClose }) {
                         </div>
                     )}
 
-                    <form onSubmit={handleSend} style={{ display: 'flex', gap: '0.75rem' }}>
+                    <form onSubmit={handleSend} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            style={{ display: 'none' }}
+                            onChange={handleFileUpload}
+                            accept="image/*,application/pdf"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            style={{
+                                width: '45px', minWidth: '45px', height: '45px', borderRadius: '12px',
+                                background: 'var(--secondary)', color: 'var(--muted-foreground)', border: '1px solid var(--border)',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}
+                        >
+                            {uploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}
+                        </button>
                         <input
                             required
                             autoFocus
@@ -257,7 +345,7 @@ export default function OperationChat({ operation, profile, onClose }) {
                         />
                         <button
                             type="submit"
-                            disabled={!newMessage.trim() || loading}
+                            disabled={(!newMessage.trim() && !uploading) || loading}
                             style={{
                                 width: '45px', minWidth: '45px', height: '45px', borderRadius: '12px',
                                 background: 'var(--primary)', color: 'white', border: 'none',

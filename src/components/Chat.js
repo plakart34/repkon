@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Send, X, MessageSquare, User, Users, ChevronLeft, Search, Circle, Pin, Paperclip, Smile, ChevronUp, ChevronDown, Trash2 } from 'lucide-react'
+import { Send, X, MessageSquare, User, Users, ChevronLeft, Search, Circle, Pin, Paperclip, Smile, ChevronUp, ChevronDown, Trash2, Loader2, FileText } from 'lucide-react'
 
 export default function Chat({ profile }) {
     const [isOpen, setIsOpen] = useState(false)
@@ -10,6 +10,7 @@ export default function Chat({ profile }) {
     const [messages, setMessages] = useState([])
     const [newMessage, setNewMessage] = useState('')
     const [loading, setLoading] = useState(false)
+    const [uploading, setUploading] = useState(false)
     const [users, setUsers] = useState([])
     const [searchTerm, setSearchTerm] = useState('')
     const [unreadCount, setUnreadCount] = useState(0)
@@ -18,6 +19,7 @@ export default function Chat({ profile }) {
     const messagesEndRef = useRef(null)
     const notificationSound = useRef(null)
     const scrollRef = useRef(null)
+    const fileInputRef = useRef(null)
     // Refs to avoid stale closures in realtime callbacks
     const selectedUserRef = useRef(null)
     const isOpenRef = useRef(false)
@@ -129,6 +131,45 @@ export default function Chat({ profile }) {
             setUnreadUsers(prev => prev.filter(id => id !== selectedUser.id))
         }
     }, [selectedUser])
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        setUploading(true)
+        try {
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`
+            const filePath = `messenger/${fileName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('chat-attachments')
+                .upload(filePath, file)
+
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('chat-attachments')
+                .getPublicUrl(filePath)
+
+            // Auto send message with attachment
+            const receiver = selectedUserRef.current
+            const { error: insertError } = await supabase.from('chat_messages').insert([{
+                sender_id: profile.id,
+                content: file.name,
+                receiver_id: receiver ? receiver.id : null,
+                file_url: publicUrl,
+                file_type: file.type
+            }])
+
+            if (insertError) throw insertError
+            fetchMessages()
+        } catch (error) {
+            alert('Dosya yükleme hatası: ' + error.message)
+        } finally {
+            setUploading(false)
+        }
+    }
 
     const handleSend = async (e) => {
         e.preventDefault()
@@ -341,9 +382,36 @@ export default function Chat({ profile }) {
                                                     background: isMe ? 'linear-gradient(135deg, ' + accentColor + ' 0%, #1d4ed8 100%)' : 'rgba(255,255,255,0.06)',
                                                     borderRadius: isMe ? '1rem 1rem 0.2rem 1rem' : '1rem 1rem 1rem 0.2rem',
                                                     border: '1px solid rgba(255,255,255,0.1)',
-                                                    color: 'white', fontSize: '13px', lineHeight: '1.4'
+                                                    color: 'white', fontSize: '13px', lineHeight: '1.4',
+                                                    overflow: 'hidden'
                                                 }}>
-                                                    {m.content}
+                                                    {m.file_url ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                            {m.file_type?.startsWith('image/') ? (
+                                                                <a href={m.file_url} target="_blank" rel="noreferrer">
+                                                                    <img
+                                                                        src={m.file_url}
+                                                                        alt="attachment"
+                                                                        style={{ maxWidth: '100%', borderRadius: '8px', cursor: 'pointer', display: 'block' }}
+                                                                    />
+                                                                </a>
+                                                            ) : (
+                                                                <a
+                                                                    href={m.file_url}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    style={{
+                                                                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                                                        color: 'inherit', textDecoration: 'none', background: 'rgba(0,0,0,0.1)',
+                                                                        padding: '0.5rem', borderRadius: '8px'
+                                                                    }}
+                                                                >
+                                                                    <FileText size={18} />
+                                                                    <span style={{ fontSize: '0.75rem' }}>{m.content || 'Dosyayı Görüntüle'}</span>
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    ) : m.content}
                                                 </div>
                                                 <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', textAlign: isMe ? 'right' : 'left' }}>
                                                     {new Date(m.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
@@ -419,6 +487,25 @@ export default function Chat({ profile }) {
                                 borderRadius: '1.25rem', border: '1px solid rgba(255,255,255,0.08)'
                             }}>
                                 <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    style={{ display: 'none' }}
+                                    onChange={handleFileUpload}
+                                    accept="image/*,application/pdf"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={uploading}
+                                    style={{
+                                        width: '32px', height: '32px', borderRadius: '10px',
+                                        background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.4)',
+                                        border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}
+                                >
+                                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                                </button>
+                                <input
                                     value={newMessage}
                                     onChange={e => setNewMessage(e.target.value)}
                                     placeholder="Mesaj..."
@@ -426,10 +513,10 @@ export default function Chat({ profile }) {
                                 />
                                 <button
                                     type="submit"
-                                    disabled={!newMessage.trim() || loading}
+                                    disabled={(!newMessage.trim() && !uploading) || loading}
                                     style={{
                                         width: '36px', height: '36px', borderRadius: '12px',
-                                        background: newMessage.trim() ? accentColor : 'rgba(255,255,255,0.06)',
+                                        background: (newMessage.trim() || uploading) ? accentColor : 'rgba(255,255,255,0.06)',
                                         border: 'none', color: 'white', cursor: 'pointer',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                                     }}

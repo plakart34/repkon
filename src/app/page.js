@@ -69,6 +69,11 @@ export default function UnifiedHome() {
     }
   }
 
+  const markAsRead = async (notifId) => {
+    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', notifId)
+    if (!error) fetchData()
+  }
+
   useEffect(() => {
     if (profile) {
       fetchData()
@@ -78,7 +83,12 @@ export default function UnifiedHome() {
         .channel('dashboard_realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'operations' }, () => fetchData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => fetchData())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, () => fetchData())
+        .on('postgres_changes', {
+          event: '*', // Listen for ALL events (INSERT, UPDATE)
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${profile.id}`
+        }, () => fetchData())
         .subscribe()
 
       return () => {
@@ -296,16 +306,33 @@ export default function UnifiedHome() {
                   <BellRing size={20} color="#3b82f6" />
                   <h3 style={{ fontWeight: 700 }}>Son Bildirimler</h3>
                 </div>
-                {notifications.length > 0 && <div style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '10px', fontWeight: 800 }}>{notifications.length}</div>}
+                {notifications.filter(n => !n.is_read).length > 0 &&
+                  <div style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '10px', fontWeight: 800 }}>
+                    {notifications.filter(n => !n.is_read).length}
+                  </div>
+                }
               </div>
               <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {notifications.map(n => (
-                  <div key={n.id} style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', borderLeft: '3px solid #3b82f6' }}>
+                  <div
+                    key={n.id}
+                    onClick={() => { markAsRead(n.id); if (n.action_link) router.push(n.action_link); }}
+                    style={{
+                      padding: '1rem',
+                      background: n.is_read ? 'rgba(255,255,255,0.01)' : 'rgba(59, 130, 246, 0.05)',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      borderLeft: n.is_read ? '3px solid transparent' : '3px solid #3b82f6',
+                      opacity: n.is_read ? 0.6 : 1,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{n.title}</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: n.is_read ? 600 : 800 }}>{n.title}</span>
                       <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>{new Date(n.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', lineHeight: '1.4' }}>{n.message}</div>
+                    <div style={{ fontSize: '0.8rem', color: n.is_read ? 'var(--muted-foreground)' : 'var(--foreground)', lineHeight: '1.4' }}>{n.message}</div>
                   </div>
                 ))}
                 {notifications.length === 0 && (

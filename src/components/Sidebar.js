@@ -59,7 +59,15 @@ export default function Sidebar({ profile }) {
             .order('created_at', { ascending: false })
             .limit(10)
         setNotifications(data || [])
-        setUnreadNotifCount(data?.filter(n => !n.is_read).length || 0)
+
+        // Count ALL unread notifications
+        const { count } = await supabase
+            .from('notifications')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', profile.id)
+            .eq('is_read', false)
+
+        setUnreadNotifCount(count || 0)
     }
 
     const markAsRead = async (notifId) => {
@@ -219,10 +227,20 @@ export default function Sidebar({ profile }) {
                             <div
                                 className="card animate-scale-in"
                                 style={{
-                                    position: 'absolute', top: '100%', left: '0', zIndex: 2000,
-                                    width: '320px', background: 'var(--card)', border: '1px solid var(--border)',
-                                    marginTop: '0.5rem', padding: '1rem', borderRadius: '16px',
-                                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+                                    position: 'fixed',
+                                    top: '4rem',
+                                    left: '1.5rem',
+                                    zIndex: 5000,
+                                    width: '320px',
+                                    background: 'var(--card)',
+                                    border: '1px solid var(--border)',
+                                    padding: '1.25rem',
+                                    borderRadius: '16px',
+                                    boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+                                    backdropFilter: 'blur(20px)',
+                                    maxHeight: '80vh',
+                                    display: 'flex',
+                                    flexDirection: 'column'
                                 }}
                                 onClick={e => e.stopPropagation()}
                             >
