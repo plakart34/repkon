@@ -362,13 +362,15 @@ export default function ToolroomInOutPage() {
                         </div>
                     </div>
 
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => setIsModalOpen(true)}
-                        style={{ borderRadius: '12px', padding: '0.75rem 1.5rem', fontWeight: 700 }}
-                    >
-                        <Plus size={20} style={{ marginRight: '0.5rem' }} /> Yeni Hareket İşle
-                    </button>
+                    {canInOut && (
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => setIsModalOpen(true)}
+                            style={{ borderRadius: '12px', padding: '0.75rem 1.5rem', fontWeight: 700 }}
+                        >
+                            <Plus size={20} style={{ marginRight: '0.5rem' }} /> Yeni Hareket İşle
+                        </button>
+                    )}
                 </header>
 
                 <div className="card" style={{
@@ -456,20 +458,24 @@ export default function ToolroomInOutPage() {
                                     </td>
                                     <td style={{ padding: '0.75rem 0.5rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-                                            <button
-                                                onClick={() => handleEditOpen(t)}
-                                                style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'none', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer' }}
-                                                title="Düzenle"
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteTransaction(t)}
-                                                style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer' }}
-                                                title="Sil"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {canInOut && (
+                                                <button
+                                                    onClick={() => handleEditOpen(t)}
+                                                    style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'none', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer' }}
+                                                    title="Düzenle"
+                                                >
+                                                    <Edit2 size={16} />
+                                                </button>
+                                            )}
+                                            {canDeleteRecord && (
+                                                <button
+                                                    onClick={() => handleDeleteTransaction(t)}
+                                                    style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer' }}
+                                                    title="Sil"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

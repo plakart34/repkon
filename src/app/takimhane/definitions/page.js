@@ -32,6 +32,7 @@ const CATEGORIES = [
 export default function ToolroomDefinitionsPage() {
     const { profile, loading: authLoading } = usePermissions()
     const canView = profile?.roles?.permissions?.includes('view_toolroom_definitions') || profile?.roles?.name === 'Admin'
+    const canManage = profile?.roles?.permissions?.includes('manage_toolroom_items') || profile?.roles?.name === 'Admin'
     const [definitions, setDefinitions] = useState([])
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState('supplier')
@@ -74,6 +75,7 @@ export default function ToolroomDefinitionsPage() {
 
     const handleAdd = async (e) => {
         e.preventDefault()
+        if (!canManage) return
         if (!newValue.trim()) return
 
         const payload = {
@@ -101,6 +103,7 @@ export default function ToolroomDefinitionsPage() {
     }
 
     const handleDelete = async (id) => {
+        if (!canManage) return
         if (!confirm('Bu tanımı silmek istediğinizden emin misiniz?')) return
         const { error } = await supabase.from('toolroom_definitions').delete().eq('id', id)
         if (!error) fetchData()
@@ -170,40 +173,42 @@ export default function ToolroomDefinitionsPage() {
                             {category?.label}
                         </h3>
 
-                        <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
-                                {category.parentType && (
-                                    <select
+                        {canManage && (
+                            <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    {category.parentType && (
+                                        <select
+                                            className="input-field"
+                                            style={{ width: '250px', borderRadius: '12px' }}
+                                            value={parentId}
+                                            onChange={e => setParentId(e.target.value)}
+                                            required
+                                        >
+                                            <option value="">-- Üst Grup Seçin --</option>
+                                            {parentOptions.map(p => (
+                                                <option key={p.id} value={p.id}>{p.value}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    <input
+                                        placeholder={`${category?.label} için yeni değer yazın...`}
                                         className="input-field"
-                                        style={{ width: '250px', borderRadius: '12px' }}
-                                        value={parentId}
-                                        onChange={e => setParentId(e.target.value)}
+                                        value={newValue}
+                                        onChange={e => setNewValue(e.target.value)}
+                                        style={{ flex: 1, borderRadius: '12px' }}
                                         required
-                                    >
-                                        <option value="">-- Üst Grup Seçin --</option>
-                                        {parentOptions.map(p => (
-                                            <option key={p.id} value={p.id}>{p.value}</option>
-                                        ))}
-                                    </select>
+                                    />
+                                    <button className="btn btn-primary" type="submit" style={{ borderRadius: '12px', padding: '0 2rem', height: '42px' }}>
+                                        <Plus size={20} style={{ marginRight: '0.5rem' }} /> EKLE
+                                    </button>
+                                </div>
+                                {category.parentType && (
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', marginTop: '-0.5rem' }}>
+                                        Not: {category.label} bir üst gruba bağlıdır. Lütfen önce bir üst grup seçin.
+                                    </p>
                                 )}
-                                <input
-                                    placeholder={`${category?.label} için yeni değer yazın...`}
-                                    className="input-field"
-                                    value={newValue}
-                                    onChange={e => setNewValue(e.target.value)}
-                                    style={{ flex: 1, borderRadius: '12px' }}
-                                    required
-                                />
-                                <button className="btn btn-primary" type="submit" style={{ borderRadius: '12px', padding: '0 2rem', height: '42px' }}>
-                                    <Plus size={20} style={{ marginRight: '0.5rem' }} /> EKLE
-                                </button>
-                            </div>
-                            {category.parentType && (
-                                <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', marginTop: '-0.5rem' }}>
-                                    Not: {category.label} bir üst gruba bağlıdır. Lütfen önce bir üst grup seçin.
-                                </p>
-                            )}
-                        </form>
+                            </form>
+                        )}
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             {loading ? (
@@ -238,14 +243,16 @@ export default function ToolroomDefinitionsPage() {
                                         )}
                                         <span style={{ fontWeight: 500, opacity: 0.9 }}>{item.value}</span>
                                     </div>
-                                    <button
-                                        onClick={() => handleDelete(item.id)}
-                                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.6, transition: '0.2s' }}
-                                        onMouseEnter={e => e.currentTarget.style.opacity = 1}
-                                        onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
+                                    {canManage && (
+                                        <button
+                                            onClick={() => handleDelete(item.id)}
+                                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.6, transition: '0.2s' }}
+                                            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                            onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                         </div>
