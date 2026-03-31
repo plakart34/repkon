@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
@@ -21,11 +22,18 @@ import {
     ShoppingCart,
     Edit2,
     MoreVertical,
-    Trash2
+    Trash2,
+    Shield
 } from 'lucide-react'
 
 export default function ToolroomInOutPage() {
+    const router = useRouter()
     const { profile, loading: authLoading } = usePermissions()
+
+    const canView = profile?.roles?.permissions?.includes('view_toolroom_in_out') || profile?.roles?.name === 'Admin'
+    const canInOut = profile?.roles?.permissions?.includes('toolroom_in_out') || profile?.roles?.name === 'Admin'
+    const canDeleteRecord = profile?.roles?.permissions?.includes('delete_toolroom_transaction') || profile?.roles?.name === 'Admin'
+
     const [transactions, setTransactions] = useState([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -94,6 +102,10 @@ export default function ToolroomInOutPage() {
     }
 
     const handleDeleteTransaction = async (t) => {
+        if (!canDeleteRecord) {
+            alert('Bu işlemi silmek için yetkiniz bulunmamaktadır.');
+            return;
+        }
         if (!confirm(`BU İŞLEM SİLİNECEK! \n\n${t.item_description} (${t.quantity} Adet) işlemi iptal edilecek ve stok geri alınacaktır. Emin misiniz?`)) return;
 
         setLoading(true)
@@ -129,11 +141,19 @@ export default function ToolroomInOutPage() {
     }
 
     const handleEditOpen = (t) => {
+        if (!canInOut) {
+            alert('Düzenleme yetkiniz bulunmamaktadır.');
+            return;
+        }
         setEditingTransaction({ ...t });
         setEditModalOpen(true);
     }
 
     const handleSaveEdit = async () => {
+        if (!canInOut) {
+            alert('İşlem yapmak için yetkiniz bulunmamaktadır.');
+            return;
+        }
         setLoading(true);
         try {
             const { error } = await supabase
@@ -309,6 +329,22 @@ export default function ToolroomInOutPage() {
 
     if (authLoading) return <div className="loading-container">Sistem Yükleniyor...</div>
     if (!profile) return null
+
+    if (!canView) {
+        return (
+            <div className="main-container">
+                <Sidebar profile={profile} />
+                <main className="content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
+                        <Shield style={{ opacity: 0.2, marginBottom: '1rem' }} size={64} />
+                        <h2>Yetkisiz Erişim</h2>
+                        <p style={{ color: 'var(--muted-foreground)' }}>Takımhane modülünü görüntüleme yetkiniz bulunmamaktadır.</p>
+                        <button className="btn btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => router.push('/')}>Ana Sayfaya Dön</button>
+                    </div>
+                </main>
+            </div>
+        )
+    }
 
     return (
         <div className="main-container">

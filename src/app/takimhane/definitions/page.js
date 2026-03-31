@@ -31,6 +31,7 @@ const CATEGORIES = [
 
 export default function ToolroomDefinitionsPage() {
     const { profile, loading: authLoading } = usePermissions()
+    const canView = profile?.roles?.permissions?.includes('view_toolroom_definitions') || profile?.roles?.name === 'Admin'
     const [definitions, setDefinitions] = useState([])
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState('supplier')
@@ -49,8 +50,27 @@ export default function ToolroomDefinitionsPage() {
     }
 
     useEffect(() => {
-        if (profile) fetchData()
-    }, [profile])
+        if (profile && canView) fetchData()
+    }, [profile, canView])
+
+    if (authLoading) return <div className="loading-container">Sistem Yükleniyor...</div>
+    if (!profile) return null
+
+    if (!canView) {
+        return (
+            <div className="main-container">
+                <Sidebar profile={profile} />
+                <main className="content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
+                        <Settings style={{ opacity: 0.2, marginBottom: '1rem' }} size={64} />
+                        <h2>Yetkisiz Erişim</h2>
+                        <p style={{ color: 'var(--muted-foreground)' }}>Takımhane tanımlama modülünü görüntüleme yetkiniz bulunmamaktadır.</p>
+                        <button className="btn btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => window.location.href = '/'}>Ana Sayfaya Dön</button>
+                    </div>
+                </main>
+            </div>
+        )
+    }
 
     const handleAdd = async (e) => {
         e.preventDefault()
@@ -85,9 +105,6 @@ export default function ToolroomDefinitionsPage() {
         const { error } = await supabase.from('toolroom_definitions').delete().eq('id', id)
         if (!error) fetchData()
     }
-
-    if (authLoading) return <div className="loading-container">Sistem Yükleniyor...</div>
-    if (!profile) return null
 
     const category = CATEGORIES.find(c => c.type === activeTab)
     const filtered = definitions.filter(d => d.type === activeTab)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, Fragment } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
@@ -12,11 +13,16 @@ import {
     ChevronDown,
     ChevronUp,
     BarChart3,
-    ArrowRight
+    ArrowRight,
+    Shield
 } from 'lucide-react'
 
 export default function ToolroomStockPage() {
+    const router = useRouter()
     const { profile, loading: authLoading } = usePermissions()
+
+    const canView = profile?.roles?.permissions?.includes('view_toolroom_stock') || profile?.roles?.name === 'Admin'
+
     const [items, setItems] = useState([])
     const [transactions, setTransactions] = useState([])
     const [loading, setLoading] = useState(true)
@@ -48,6 +54,22 @@ export default function ToolroomStockPage() {
 
     if (authLoading) return <div className="loading-container">Sistem Yükleniyor...</div>
     if (!profile) return null
+
+    if (!canView) {
+        return (
+            <div className="main-container">
+                <Sidebar profile={profile} />
+                <main className="content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
+                        <Shield style={{ opacity: 0.2, marginBottom: '1rem' }} size={64} />
+                        <h2>Yetkisiz Erişim</h2>
+                        <p style={{ color: 'var(--muted-foreground)' }}>Takımhane stok modülünü görüntüleme yetkiniz bulunmamaktadır.</p>
+                        <button className="btn btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => router.push('/')}>Ana Sayfaya Dön</button>
+                    </div>
+                </main>
+            </div>
+        )
+    }
 
     if (loading) {
         return (

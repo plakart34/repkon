@@ -172,9 +172,10 @@ export default function Sidebar({ profile }) {
         '/logs': 'view_logs',
         '/team': 'view_team',
         '/takimhane': 'view_toolroom',
-        '/takimhane/in-out': 'view_toolroom',
-        '/takimhane/datesheet': 'view_toolroom',
-        '/takimhane/stock': 'view_toolroom'
+        '/takimhane/in-out': 'view_toolroom_in_out',
+        '/takimhane/datesheet': 'view_toolroom_datesheet',
+        '/takimhane/stock': 'view_toolroom_stock',
+        '/takimhane/definitions': 'view_toolroom_definitions'
     }
 
     const canSee = (path) => isAdmin || permissions.includes(permissionMap[path])
@@ -403,7 +404,7 @@ export default function Sidebar({ profile }) {
                                                     </div>
                                                 ))
                                             ) : item.submenuType === 'toolroom' ? (
-                                                subItems.map(sub => (
+                                                subItems.filter(sub => canSee(sub.path)).map(sub => (
                                                     <a
                                                         key={sub.path}
                                                         href={sub.path}

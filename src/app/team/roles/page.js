@@ -82,6 +82,19 @@ export default function RolesPage() {
                 { path: 'delete_staff', name: 'Personel Kaydını Silme' },
                 { path: 'manage_roles', name: 'Rol ve Sayfa Yetkisi Düzenleme' }
             ]
+        },
+        {
+            groupName: 'Takımhane & Envanter Yönetimi',
+            permissions: [
+                { path: 'view_toolroom', name: 'Takımhane Paneli Görüntüleme' },
+                { path: 'view_toolroom_in_out', name: 'Giriş-Çıkış Görüntüleme' },
+                { path: 'view_toolroom_stock', name: 'Stok Durumu Görüntüleme' },
+                { path: 'view_toolroom_datesheet', name: 'Datesheet Görüntüleme' },
+                { path: 'view_toolroom_definitions', name: 'Tanımlamalar Görüntüleme' },
+                { path: 'manage_toolroom_items', name: 'Ürün & Envanter Yönetimi (Ekle/Edit/Sil)' },
+                { path: 'toolroom_in_out', name: 'Ürün Giriş - Çıkış İşlemleri Yapma' },
+                { path: 'delete_toolroom_transaction', name: 'Geçmiş Kayıtları Silme (Geri Alım)' }
+            ]
         }
     ]
 

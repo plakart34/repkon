@@ -9,9 +9,26 @@ import { Archive, Plus, Search, Filter, Download } from 'lucide-react'
 export default function TakimhanePage() {
     const { profile, loading: authLoading } = usePermissions()
     const [loading, setLoading] = useState(false)
+    const canView = profile?.roles?.permissions?.includes('view_toolroom') || profile?.roles?.name === 'Admin'
 
     if (authLoading) return <div className="loading-container">Sistem Yükleniyor...</div>
     if (!profile) return null
+
+    if (!canView) {
+        return (
+            <div className="main-container">
+                <Sidebar profile={profile} />
+                <main className="content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
+                        <Archive style={{ opacity: 0.2, marginBottom: '1rem' }} size={64} />
+                        <h2>Yetkisiz Erişim</h2>
+                        <p style={{ color: 'var(--muted-foreground)' }}>Takımhane Paneli'ni görüntüleme yetkiniz bulunmamaktadır.</p>
+                        <button className="btn btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => window.location.href = '/'}>Ana Sayfaya Dön</button>
+                    </div>
+                </main>
+            </div>
+        )
+    }
 
     return (
         <div className="main-container">

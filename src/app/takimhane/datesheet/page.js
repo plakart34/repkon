@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
@@ -25,6 +26,11 @@ import {
 
 export default function ToolroomDatesheetPage() {
     const { profile, loading: authLoading } = usePermissions()
+    const router = useRouter()
+
+    const canView = profile?.roles?.permissions?.includes('view_toolroom_datesheet') || profile?.roles?.name === 'Admin'
+    const canManage = profile?.roles?.permissions?.includes('manage_toolroom_items') || profile?.roles?.name === 'Admin'
+
     const [items, setItems] = useState([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -86,6 +92,14 @@ export default function ToolroomDatesheetPage() {
     }
 
     const handleOpenModal = (item = null) => {
+        if (item && !canManage) {
+            alert('Bu ürünü düzenlemek için yetkiniz bulunmamaktadır.');
+            return;
+        }
+        if (!item && !canManage) {
+            alert('Yeni ürün eklemek için yetkiniz bulunmamaktadır.');
+            return;
+        }
         if (item) {
             setEditingItem(item)
             setFormData({
@@ -155,6 +169,10 @@ export default function ToolroomDatesheetPage() {
     }
 
     const handleDelete = async (id) => {
+        if (!canManage) {
+            alert('Silme yetkiniz bulunmamaktadır.');
+            return;
+        }
         if (!confirm('Bu ürünü silmek istediğinizden emin misiniz?')) return
         const { error } = await supabase.from('toolroom_items').delete().eq('id', id)
         if (error) alert(error.message)
@@ -174,6 +192,22 @@ export default function ToolroomDatesheetPage() {
         t.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+    if (!canView) {
+        return (
+            <div className="main-container">
+                <Sidebar profile={profile} />
+                <main className="content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
+                        <Shield style={{ opacity: 0.2, marginBottom: '1rem' }} size={64} />
+                        <h2>Yetkisiz Erişim</h2>
+                        <p style={{ color: 'var(--muted-foreground)' }}>Takımhane Datasheet modülünü görüntüleme yetkiniz bulunmamaktadır.</p>
+                        <button className="btn btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => router.push('/')}>Ana Sayfaya Dön</button>
+                    </div>
+                </main>
+            </div>
+        )
+    }
+
     return (
         <div className="main-container">
             <Sidebar profile={profile} />
@@ -189,9 +223,11 @@ export default function ToolroomDatesheetPage() {
                             <p style={{ color: 'var(--muted-foreground)' }}>Takımhane envanter kataloğu ve detaylı ürün listesi.</p>
                         </div>
                     </div>
-                    <button className="btn btn-primary" onClick={() => handleOpenModal()}>
-                        <Plus size={20} style={{ marginRight: '0.5rem' }} /> Yeni Ürün Ekle
-                    </button>
+                    {canManage && (
+                        <button className="btn btn-primary" onClick={() => handleOpenModal()}>
+                            <Plus size={20} style={{ marginRight: '0.5rem' }} /> Yeni Ürün Ekle
+                        </button>
+                    )}
                 </header>
 
                 <div style={{
@@ -257,9 +293,9 @@ export default function ToolroomDatesheetPage() {
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan="13" style={{ padding: '3rem', textAlign: 'center' }}>Yükleniyor...</td></tr>
+                                <tr><td colSpan="15" style={{ padding: '3rem', textAlign: 'center' }}>Yükleniyor...</td></tr>
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan="13" style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>Kayıt bulunamadı.</td></tr>
+                                <tr><td colSpan="15" style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>Kayıt bulunamadı.</td></tr>
                             ) : filtered.map(t => (
                                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: '0.2s', cursor: 'pointer' }} className="table-row-hover" onClick={() => handleOpenModal(t)}>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', opacity: 0.5 }}>{t.sequence_no}</td>
@@ -286,20 +322,24 @@ export default function ToolroomDatesheetPage() {
                                     </td>
                                     <td style={{ padding: '0.75rem 0.5rem' }} onClick={(e) => e.stopPropagation()}>
                                         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-                                            <button
-                                                onClick={() => handleOpenModal(t)}
-                                                style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'none', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer' }}
-                                                title="Düzenle"
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(t.id)}
-                                                style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer' }}
-                                                title="Sil"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {canManage && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleOpenModal(t)}
+                                                        style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'none', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer' }}
+                                                        title="Düzenle"
+                                                    >
+                                                        <Edit2 size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(t.id)}
+                                                        style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', padding: '0.4rem', borderRadius: '8px', cursor: 'pointer' }}
+                                                        title="Sil"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
