@@ -63,6 +63,11 @@ export function usePermissions() {
                 if (path.startsWith('/logs')) return 'view_logs'
                 if (path.startsWith('/team')) return 'view_team'
                 if (path.startsWith('/register-staff')) return 'create_staff'
+                if (path.startsWith('/takimhane/in-out')) return 'view_toolroom_in_out'
+                if (path.startsWith('/takimhane/stock')) return 'view_toolroom_stock'
+                if (path.startsWith('/takimhane/datesheet')) return 'view_toolroom_datesheet'
+                if (path.startsWith('/takimhane/definitions')) return 'view_toolroom_definitions'
+                if (path.startsWith('/takimhane')) return 'view_toolroom'
                 return null
             }
 
