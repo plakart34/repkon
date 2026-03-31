@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Send, X, MessageSquare, User, Users, ChevronLeft, Search, Circle, Pin, Paperclip, Smile, ChevronUp, ChevronDown, Trash2, Loader2, FileText, Folder } from 'lucide-react'
+import { Send, X, MessageSquare, User, Users, ChevronLeft, Search, Circle, Pin, Paperclip, Smile, ChevronUp, ChevronDown, Trash2, Loader2, FileText } from 'lucide-react'
 
 export default function Chat({ profile }) {
     const [isOpen, setIsOpen] = useState(false)
@@ -13,7 +13,6 @@ export default function Chat({ profile }) {
     const [uploading, setUploading] = useState(false)
     const [users, setUsers] = useState([])
     const [searchTerm, setSearchTerm] = useState('')
-    const [expandedDepts, setExpandedDepts] = useState([]) // Track expanded departments
     const [unreadCount, setUnreadCount] = useState(0)
     const [unreadUsers, setUnreadUsers] = useState([]) // TRACK UNREAD USER IDs
     const [lastReadTime, setLastReadTime] = useState(Date.now())
@@ -206,32 +205,9 @@ export default function Chat({ profile }) {
         }
     }
 
-    const groupedUsers = useMemo(() => {
-        const groups = {}
-        const lowerSearch = searchTerm.toLowerCase()
-
-        users.forEach(u => {
-            if (lowerSearch && !u.full_name?.toLowerCase().includes(lowerSearch) && !u.department?.toLowerCase().includes(lowerSearch)) return
-
-            const dept = u.department || 'Operasyon'
-            if (!groups[dept]) groups[dept] = []
-            groups[dept].push(u)
-        })
-        return groups
+    const filteredUsers = useMemo(() => {
+        return users.filter(u => u.full_name.toLowerCase().includes(searchTerm.toLowerCase()))
     }, [users, searchTerm])
-
-    // Expand all depts if searching
-    useEffect(() => {
-        if (searchTerm) {
-            setExpandedDepts(Object.keys(groupedUsers))
-        }
-    }, [searchTerm, groupedUsers])
-
-    const toggleDept = (dept) => {
-        setExpandedDepts(prev =>
-            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
-        )
-    }
 
     if (!profile) return null
 
@@ -469,70 +445,32 @@ export default function Chat({ profile }) {
                                     style={{ flex: 1, overflowY: 'auto', padding: '0 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}
                                 >
 
-                                    {Object.entries(groupedUsers).map(([dept, deptUsers]) => {
-                                        const isExpanded = expandedDepts.includes(dept)
-                                        const deptUnreadCount = deptUsers.filter(u => unreadUsers.includes(u.id)).length
-
+                                    {filteredUsers.map(user => {
+                                        const isUnread = unreadUsers.includes(user.id)
                                         return (
-                                            <div key={dept} style={{ marginBottom: '0.5rem' }}>
-                                                <div
-                                                    onClick={() => toggleDept(dept)}
-                                                    style={{
-                                                        padding: '0.85rem 1rem',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '0.75rem',
-                                                        cursor: 'pointer',
-                                                        background: 'rgba(255,255,255,0.03)',
-                                                        borderRadius: '14px',
-                                                        border: '1px solid rgba(255,255,255,0.05)',
-                                                        transition: '0.2s'
-                                                    }}
-                                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                                                >
-                                                    <div style={{ color: deptUnreadCount > 0 ? '#ef4444' : 'var(--primary)', display: 'flex', alignItems: 'center' }}>
-                                                        <Folder size={18} fill={deptUnreadCount > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(59, 130, 246, 0.1)'} />
-                                                    </div>
-                                                    <div style={{ flex: 1, fontSize: '0.85rem', fontWeight: 700, color: 'white' }}>
-                                                        {dept}
-                                                        <span style={{ marginLeft: '0.5rem', opacity: 0.3, fontWeight: 400, fontSize: '0.75rem' }}>({deptUsers.length})</span>
-                                                    </div>
-                                                    {deptUnreadCount > 0 && (
-                                                        <div style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 900 }}>
-                                                            {deptUnreadCount}
-                                                        </div>
-                                                    )}
-                                                    {isExpanded ? <ChevronUp size={14} style={{ opacity: 0.3 }} /> : <ChevronDown size={14} style={{ opacity: 0.3 }} />}
+                                            <div
+                                                key={user.id}
+                                                onClick={() => setSelectedUser(user)}
+                                                style={{
+                                                    padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem',
+                                                    cursor: 'pointer', borderRadius: '1rem', transition: 'all 0.2s',
+                                                    background: isUnread ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                                                    borderLeft: isUnread ? '3px solid #ef4444' : '3px solid transparent',
+                                                    boxShadow: isUnread ? '0 0 15px rgba(239, 68, 68, 0.05)' : 'none'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.background = isUnread ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255,255,255,0.04)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = isUnread ? 'rgba(239, 68, 68, 0.08)' : 'transparent'}
+                                            >
+                                                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: isUnread ? '#ef4444' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'white' }}>
+                                                    {user.full_name?.charAt(0)}
                                                 </div>
-
-                                                {isExpanded && (
-                                                    <div className="animate-fade-in" style={{ padding: '0.25rem 0 0 1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.25rem', borderLeft: '1px dashed rgba(255,255,255,0.1)' }}>
-                                                        {deptUsers.map(user => {
-                                                            const isUnread = unreadUsers.includes(user.id)
-                                                            return (
-                                                                <div
-                                                                    key={user.id}
-                                                                    onClick={() => setSelectedUser(user)}
-                                                                    style={{
-                                                                        padding: '0.6rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                                                                        cursor: 'pointer', borderRadius: '10px', transition: 'all 0.2s',
-                                                                        background: isUnread ? 'rgba(239, 68, 68, 0.08)' : 'transparent'
-                                                                    }}
-                                                                    onMouseEnter={e => e.currentTarget.style.background = isUnread ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255,255,255,0.04)'}
-                                                                    onMouseLeave={e => e.currentTarget.style.background = isUnread ? 'rgba(239, 68, 68, 0.08)' : 'transparent'}
-                                                                >
-                                                                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: isUnread ? '#ef4444' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, color: 'white' }}>
-                                                                        {user.full_name?.charAt(0)}
-                                                                    </div>
-                                                                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: isUnread ? '#ef4444' : 'rgba(255,255,255,0.9)' }}>
-                                                                        {user.full_name}
-                                                                    </div>
-                                                                </div>
-                                                            )
-                                                        })}
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isUnread ? '#ef4444' : 'white' }}>
+                                                        {user.full_name}
+                                                        {isUnread && <span style={{ marginLeft: '8px', width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px #ef4444' }} />}
                                                     </div>
-                                                )}
+                                                    <div style={{ fontSize: '0.7rem', color: isUnread ? 'rgba(239,68,68,0.6)' : 'rgba(255,255,255,0.4)' }}>{user.department || 'Operasyon'}</div>
+                                                </div>
                                             </div>
                                         )
                                     })}
