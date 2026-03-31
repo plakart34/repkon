@@ -181,6 +181,7 @@ export default function Sidebar({ profile }) {
         '/takimhane/in-out': 'view_toolroom_in_out',
         '/takimhane/datesheet': 'view_toolroom_datesheet',
         '/takimhane/stock': 'view_toolroom_stock',
+        '/takimhane/field': 'view_toolroom_field',
         '/takimhane/definitions': 'view_toolroom_definitions',
         '/takimhane/calibration': 'view_toolroom_calibration',
         '/takimhane/scrap': 'view_toolroom_scrap'
@@ -334,6 +335,7 @@ export default function Sidebar({ profile }) {
                                     { name: 'Datesheet', path: '/takimhane/datesheet' },
                                     { name: 'Kalibrasyon Takip', path: '/takimhane/calibration' },
                                     { name: 'Hurda Takip', path: '/takimhane/scrap' },
+                                    { name: 'Saha Envanteri', path: '/takimhane/field' },
                                     { name: 'Tanımlamalar', path: '/takimhane/definitions' }
                                 ]
                             } else {

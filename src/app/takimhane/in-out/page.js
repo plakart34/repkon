@@ -55,7 +55,8 @@ export default function ToolroomInOutPage() {
         measurement_description: '',
         quantity: 1,
         is_calibration: false,
-        serial_no: ''
+        serial_no: '',
+        scrap_description: ''
     })
 
     const [items, setItems] = useState([])
@@ -212,6 +213,11 @@ export default function ToolroomInOutPage() {
             return
         }
 
+        if (sharedData.type === 'Hurda' && !formData.scrap_description) {
+            alert('Lütfen Hurda Açıklaması girin. (Zorunlu)');
+            return;
+        }
+
         // Stok kontrolü (Çıkış veya Zimmet tipinde)
         if (sharedData.type === 'Çıkış' || sharedData.type === 'Zimmet') {
             const targetItem = items.find(i => i.item_no === formData.item_no && i.item_description === formData.item_description)
@@ -233,7 +239,8 @@ export default function ToolroomInOutPage() {
             measurement_description: '',
             quantity: 1,
             is_calibration: false,
-            serial_no: ''
+            serial_no: '',
+            scrap_description: ''
         })
     }
 
@@ -281,8 +288,11 @@ export default function ToolroomInOutPage() {
 
                 let newStock = 0
                 if (targetItem) {
-                    newStock = (targetItem.quantity || 0) + change
-                    await supabase.from('toolroom_items').update({ quantity: newStock }).eq('id', targetItem.id)
+                    // Hurda durumunda stok artmaz
+                    newStock = sharedData.type === 'Hurda' ? (targetItem.quantity || 0) : (targetItem.quantity || 0) + change
+                    if (sharedData.type !== 'Hurda') {
+                        await supabase.from('toolroom_items').update({ quantity: newStock }).eq('id', targetItem.id)
+                    }
                 }
 
                 await supabase.from('toolroom_transactions').insert([{
@@ -290,8 +300,9 @@ export default function ToolroomInOutPage() {
                     item_description: row.item_description,
                     measurement_description: row.is_calibration ? null : row.measurement_description,
                     serial_no: row.is_calibration ? row.serial_no : null,
+                    scrap_description: sharedData.type === 'Hurda' ? row.scrap_description : null,
                     is_calibration: row.is_calibration,
-                    quantity: change,
+                    quantity: sharedData.type === 'Hurda' ? 0 : change, // Hurda kaydı ise miktar etkisiz olabilir veya 0 gösterilir. Ama kullanıcı miktar girmişti. 
                     department: sharedData.department,
                     reciever_sender: sharedData.reciever_sender,
                     location: sharedData.location,
@@ -604,26 +615,28 @@ export default function ToolroomInOutPage() {
                                                         }}
                                                     >ZİMMET</button>
                                                     <button
-                                                        disabled
+                                                        onClick={() => {
+                                                            setLocationType('genel');
+                                                            setSharedData({ ...sharedData, type: 'Hurda', location: 'Hurda Alanı' });
+                                                        }}
                                                         style={{
                                                             padding: '0.75rem',
                                                             borderRadius: '12px',
-                                                            background: 'rgba(255,255,255,0.01)',
-                                                            color: 'rgba(255,255,255,0.1)',
-                                                            border: '1px solid var(--border)',
-                                                            cursor: 'not-allowed',
+                                                            background: sharedData.type === 'Hurda' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.03)',
+                                                            color: sharedData.type === 'Hurda' ? '#ef4444' : 'var(--muted-foreground)',
+                                                            border: '1px solid ' + (sharedData.type === 'Hurda' ? '#ef4444' : 'var(--border)'),
+                                                            cursor: 'pointer',
                                                             fontWeight: 800,
-                                                            opacity: 0.5,
+                                                            transition: '0.2s',
                                                             letterSpacing: '0.05em'
                                                         }}
-                                                        title="Yakında eklenecek..."
                                                     >HURDA</button>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div style={{ minHeight: '115px', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                            {sharedData.type === 'Çıkış' || sharedData.type === 'Zimmet' ? (
+                                            {sharedData.type === 'Çıkış' || sharedData.type === 'Zimmet' || sharedData.type === 'Hurda' ? (
                                                 <>
                                                     <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Lokasyon / Proje</label>
                                                     <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
@@ -730,12 +743,25 @@ export default function ToolroomInOutPage() {
                                                 />
                                                 <input type="number" className="input-field" style={{ borderRadius: '12px', textAlign: 'center', fontWeight: 800 }} value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: parseInt(e.target.value) })} />
                                             </div>
+
+                                            {sharedData.type === 'Hurda' && (
+                                                <div className="animate-fade-in">
+                                                    <textarea
+                                                        className="input-field"
+                                                        style={{ borderRadius: '12px', minHeight: '80px', padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                                                        placeholder="Hurda Ayrılma Nedeni / Açıklama (Zorunlu)..."
+                                                        value={formData.scrap_description}
+                                                        onChange={e => setFormData({ ...formData, scrap_description: e.target.value })}
+                                                    />
+                                                </div>
+                                            )}
+
                                             <button
                                                 type="button"
                                                 onClick={addToBasket}
                                                 style={{
                                                     padding: '1rem',
-                                                    background: 'var(--primary)',
+                                                    background: sharedData.type === 'Hurda' ? '#ef4444' : 'var(--primary)',
                                                     color: 'white',
                                                     border: 'none',
                                                     borderRadius: '12px',
@@ -748,7 +774,7 @@ export default function ToolroomInOutPage() {
                                                 onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                                                 onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                                             >
-                                                LİSTEYE EKLE
+                                                {sharedData.type === 'Hurda' ? 'HURDA OLARAK EKLE' : 'LİSTEYE EKLE'}
                                             </button>
                                         </div>
                                     </div>
