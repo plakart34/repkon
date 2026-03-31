@@ -89,6 +89,8 @@ export default function RolesPage() {
                 { path: 'view_toolroom', name: 'Takımhane Paneli Görüntüleme' },
                 { path: 'view_toolroom_in_out', name: 'Giriş-Çıkış Görüntüleme' },
                 { path: 'view_toolroom_stock', name: 'Stok Durumu Görüntüleme' },
+                { path: 'view_toolroom_field', name: 'Saha Envanteri Görüntüleme' },
+                { path: 'view_toolroom_scrap', name: 'Hurda Takip Görüntüleme' },
                 { path: 'view_toolroom_datesheet', name: 'Datesheet Görüntüleme' },
                 { path: 'view_toolroom_definitions', name: 'Tanımlamalar Görüntüleme' },
                 { path: 'view_toolroom_calibration', name: 'Kalibrasyon Takip Görüntüleme' },

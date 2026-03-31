@@ -66,6 +66,8 @@ export function usePermissions() {
                 if (path.startsWith('/takimhane/calibration')) return 'view_toolroom_calibration'
                 if (path.startsWith('/takimhane/in-out')) return 'view_toolroom_in_out'
                 if (path.startsWith('/takimhane/stock')) return 'view_toolroom_stock'
+                if (path.startsWith('/takimhane/field')) return 'view_toolroom_field'
+                if (path.startsWith('/takimhane/scrap')) return 'view_toolroom_scrap'
                 if (path.startsWith('/takimhane/datesheet')) return 'view_toolroom_datesheet'
                 if (path.startsWith('/takimhane/definitions')) return 'view_toolroom_definitions'
                 if (path.startsWith('/takimhane')) return 'view_toolroom'
@@ -73,7 +75,8 @@ export function usePermissions() {
             }
 
             const currentKey = getPermissionKey(pathname)
-            const isAllowed = isAdmin || (currentKey && allowedPaths.includes(currentKey))
+            // Admin her zaman yetkilidir, aksi halde key varsa listede olmalı, key yoksa herkese açık demektir
+            const isAllowed = isAdmin === true || (currentKey && allowedPaths.includes(currentKey)) || !currentKey
 
             if (!isAllowed && pathname !== '/unauthorized' && pathname !== '/login') {
                 router.replace('/unauthorized')
