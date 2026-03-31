@@ -84,6 +84,16 @@ export default function Sidebar({ profile }) {
     }
 
     useEffect(() => {
+        const savedTheme = localStorage.getItem('rmk_theme') || 'dark'
+        setTheme(savedTheme)
+        document.documentElement.setAttribute('data-theme', savedTheme)
+    }, [])
+
+    useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme)
+    }, [theme])
+
+    useEffect(() => {
         if (profile) {
             fetchData()
             fetchNotifications()
@@ -103,15 +113,11 @@ export default function Sidebar({ profile }) {
 
             return () => supabase.removeChannel(channel)
         }
-        const savedTheme = localStorage.getItem('rmk_theme') || 'dark'
-        setTheme(savedTheme)
-        document.documentElement.setAttribute('data-theme', savedTheme)
-    }, [pathname, profile])
+    }, [profile])
 
     const toggleTheme = (newTheme) => {
         setTheme(newTheme)
         localStorage.setItem('rmk_theme', newTheme)
-        document.documentElement.setAttribute('data-theme', newTheme)
     }
 
     const handleLogout = async () => {
@@ -175,7 +181,8 @@ export default function Sidebar({ profile }) {
         '/takimhane/in-out': 'view_toolroom_in_out',
         '/takimhane/datesheet': 'view_toolroom_datesheet',
         '/takimhane/stock': 'view_toolroom_stock',
-        '/takimhane/definitions': 'view_toolroom_definitions'
+        '/takimhane/definitions': 'view_toolroom_definitions',
+        '/takimhane/calibration': 'view_toolroom_calibration'
     }
 
     const canSee = (path) => isAdmin || permissions.includes(permissionMap[path])
@@ -324,6 +331,7 @@ export default function Sidebar({ profile }) {
                                     { name: 'Giriş-Çıkış', path: '/takimhane/in-out' },
                                     { name: 'Stok Durumu', path: '/takimhane/stock' },
                                     { name: 'Datesheet', path: '/takimhane/datesheet' },
+                                    { name: 'Kalibrasyon Takip', path: '/takimhane/calibration' },
                                     { name: 'Tanımlamalar', path: '/takimhane/definitions' }
                                 ]
                             } else {

@@ -43,7 +43,7 @@ export default function ToolroomInOutPage() {
     // Shared Data
     const [sharedData, setSharedData] = useState({
         type: 'Çıkış',
-        location: '',
+        location: 'Fabrika İşleri',
         department: 'Akışkan Montaj',
         reciever_sender: ''
     })
@@ -54,6 +54,8 @@ export default function ToolroomInOutPage() {
         item_description: '',
         measurement_description: '',
         quantity: 1,
+        is_calibration: false,
+        serial_no: ''
     })
 
     const [items, setItems] = useState([])
@@ -110,25 +112,18 @@ export default function ToolroomInOutPage() {
 
         setLoading(true)
         try {
-            // Find current item in local state or refetch?
-            // Safer to refetch item before update
             const { data: currentItem, error: itemError } = await supabase
                 .from('toolroom_items')
                 .select('*')
                 .eq('item_no', t.item_no)
                 .eq('item_description', t.item_description)
-                .single();
+                .maybeSingle();
 
             if (currentItem && !itemError) {
-                // If it was a 'Giriş' of 5, deleting it means -5 from stock.
-                // If it was a 'Çıkış' of -5, deleting it means +5 to stock.
                 const newQty = (currentItem.quantity || 0) - (t.quantity || 0);
-
-                // Update stock
                 await supabase.from('toolroom_items').update({ quantity: newQty }).eq('id', currentItem.id);
             }
 
-            // Delete transaction
             await supabase.from('toolroom_transactions').delete().eq('id', t.id);
 
             alert('İşlem silindi ve stok güncellendi.');
@@ -187,7 +182,8 @@ export default function ToolroomInOutPage() {
         if (val.trim().length > 0) {
             const matches = items.filter(i =>
                 i.item_description?.toLowerCase().includes(val.toLowerCase()) ||
-                i.item_no?.toLowerCase().includes(val.toLowerCase())
+                i.item_no?.toLowerCase().includes(val.toLowerCase()) ||
+                (i.is_calibration && i.serial_no?.toLowerCase().includes(val.toLowerCase()))
             ).slice(0, 8)
             setItemSuggestions(matches)
             setShowSuggestions(true)
@@ -202,7 +198,9 @@ export default function ToolroomInOutPage() {
             ...formData,
             item_no: item.item_no || '',
             item_description: item.item_description || '',
-            measurement_description: item.measurement_description || ''
+            measurement_description: item.measurement_description || '',
+            is_calibration: item.is_calibration || false,
+            serial_no: item.serial_no || ''
         })
         setShowSuggestions(false)
         setItemSuggestions([])
@@ -214,8 +212,8 @@ export default function ToolroomInOutPage() {
             return
         }
 
-        // Stok kontrolü (Çıkış tipinde)
-        if (sharedData.type === 'Çıkış') {
+        // Stok kontrolü (Çıkış veya Zimmet tipinde)
+        if (sharedData.type === 'Çıkış' || sharedData.type === 'Zimmet') {
             const targetItem = items.find(i => i.item_no === formData.item_no && i.item_description === formData.item_description)
             const alreadyInBasket = basket
                 .filter(b => b.item_no === formData.item_no && b.item_description === formData.item_description)
@@ -233,7 +231,9 @@ export default function ToolroomInOutPage() {
             item_no: '',
             item_description: '',
             measurement_description: '',
-            quantity: 1
+            quantity: 1,
+            is_calibration: false,
+            serial_no: ''
         })
     }
 
@@ -247,8 +247,8 @@ export default function ToolroomInOutPage() {
             return
         }
 
-        if (sharedData.type === 'Çıkış' && (!sharedData.location || sharedData.location === 'Takımhane')) {
-            alert('Lütfen çıkış yapmadan evvel bir Proje veya Lokasyon seçin.')
+        if ((sharedData.type === 'Çıkış' || sharedData.type === 'Zimmet') && (!sharedData.location || sharedData.location === 'Takımhane')) {
+            alert('Lütfen çıkış veya zimmet yapmadan evvel bir Proje veya Lokasyon seçin.')
             return
         }
 
@@ -260,8 +260,7 @@ export default function ToolroomInOutPage() {
         setLoading(true)
 
         try {
-            // Final Stok Kontrolü (İşlem anında bir kez daha)
-            if (sharedData.type === 'Çıkış') {
+            if (sharedData.type === 'Çıkış' || sharedData.type === 'Zimmet') {
                 for (const row of basket) {
                     const targetItem = items.find(i => i.item_no === row.item_no && i.item_description === row.item_description)
                     const totalRequestedForThisItem = basket
@@ -277,7 +276,7 @@ export default function ToolroomInOutPage() {
             }
 
             for (const row of basket) {
-                const change = sharedData.type === 'Çıkış' ? -Math.abs(row.quantity) : Math.abs(row.quantity)
+                const change = (sharedData.type === 'Çıkış' || sharedData.type === 'Zimmet') ? -Math.abs(row.quantity) : Math.abs(row.quantity)
                 const targetItem = items.find(i => i.item_no === row.item_no && i.item_description === row.item_description)
 
                 let newStock = 0
@@ -289,14 +288,16 @@ export default function ToolroomInOutPage() {
                 await supabase.from('toolroom_transactions').insert([{
                     item_no: row.item_no,
                     item_description: row.item_description,
-                    measurement_description: row.measurement_description,
+                    measurement_description: row.is_calibration ? null : row.measurement_description,
+                    serial_no: row.is_calibration ? row.serial_no : null,
+                    is_calibration: row.is_calibration,
                     quantity: change,
                     department: sharedData.department,
                     reciever_sender: sharedData.reciever_sender,
                     location: sharedData.location,
                     transaction_type: sharedData.type,
                     current_stock: newStock,
-                    transaction_date: new Date().toISOString() // Ensure date is set
+                    transaction_date: new Date().toISOString()
                 }])
             }
 
@@ -312,11 +313,10 @@ export default function ToolroomInOutPage() {
         }
     }
 
-    // Modal helpers
     const resetModal = () => {
         setIsModalOpen(false);
         setBasket([]);
-        setFormData({ item_no: '', item_description: '', measurement_description: '', quantity: 1 });
+        setFormData({ item_no: '', item_description: '', measurement_description: '', quantity: 1, is_calibration: false, serial_no: '' });
         setSharedData({ type: 'Çıkış', location: 'Fabrika İşleri', department: 'Akışkan Montaj', reciever_sender: '' });
         setLocationType('genel');
     }
@@ -419,7 +419,7 @@ export default function ToolroomInOutPage() {
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em' }}>İşlem</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em' }}>Kalem No</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em' }}>Kalem Tanımı</th>
-                                <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em' }}>Ölçü</th>
+                                <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em' }}>Ölçü / Seri No</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em' }}>Miktar</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em' }}>Bölüm</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em' }}>Kime/Kimden</th>
@@ -430,19 +430,21 @@ export default function ToolroomInOutPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {loading ? (
-                                <tr><td colSpan="11" style={{ padding: '3rem', textAlign: 'center' }}>Yükleniyor...</td></tr>
+                            {loading && transactions.length === 0 ? (
+                                <tr><td colSpan="12" style={{ padding: '3rem', textAlign: 'center' }}>Yükleniyor...</td></tr>
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan="11" style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>Kayıt bulunamadı.</td></tr>
+                                <tr><td colSpan="12" style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>Kayıt bulunamadı.</td></tr>
                             ) : filtered.map(t => (
                                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: '0.2s', cursor: 'default' }} className="table-row-hover">
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', opacity: 0.5, fontWeight: 500 }}>#{t.sequence_no}</td>
                                     <td style={{ padding: '0.75rem 0.5rem' }}>
-                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: t.transaction_type === 'Giriş' ? '#4ade80' : '#ef4444' }}>{t.transaction_type}</div>
+                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: t.transaction_type === 'Giriş' ? '#4ade80' : t.transaction_type === 'Zimmet' ? '#3b82f6' : '#ef4444' }}>{t.transaction_type}</div>
                                     </td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', fontWeight: 600 }}>{t.item_no || '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem' }}>{t.item_description}</td>
-                                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{t.measurement_description || '-'}</td>
+                                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', color: t.is_calibration ? 'var(--primary)' : 'var(--muted-foreground)', fontWeight: t.is_calibration ? 700 : 400 }}>
+                                        {t.is_calibration ? (t.serial_no || '-') : (t.measurement_description || '-')}
+                                    </td>
                                     <td style={{ padding: '0.75rem 0.5rem' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: t.quantity > 0 ? '#4ade80' : '#ef4444', fontSize: '0.85rem', fontWeight: 800 }}>
                                             {t.quantity > 0 ? <ArrowDownCircle size={14} /> : <ArrowUpCircle size={14} />}
@@ -486,195 +488,322 @@ export default function ToolroomInOutPage() {
 
                 {/* Bulk Modal Form */}
                 {isModalOpen && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(15px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100000 }}>
-                        <div className="card animate-scale-in" style={{ width: '1000px', maxWidth: '95%', padding: '2rem', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: '1.5rem', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100000 }}>
+                        <div className="card animate-scale-in" style={{
+                            width: '1050px',
+                            maxWidth: '95%',
+                            padding: '2.5rem',
+                            maxHeight: '90vh',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '2rem',
+                            boxShadow: '0 50px 100px rgba(0,0,0,0.3)',
+                            background: 'var(--card)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '24px'
+                        }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ padding: '0.5rem', background: 'var(--primary)', borderRadius: '10px' }}><ShoppingCart size={24} /></div>
-                                    <h3 style={{ fontWeight: 800 }}>Toplu Giriş - Çıkış İşlemi</h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                                    <div style={{
+                                        padding: '0.75rem',
+                                        background: 'linear-gradient(135deg, var(--primary) 0%, #2563eb 100%)',
+                                        color: 'white',
+                                        borderRadius: '16px',
+                                        boxShadow: '0 10px 20px rgba(59, 130, 246, 0.3)'
+                                    }}>
+                                        <ShoppingCart size={28} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.02em' }}>Toplu Giriş - Çıkış İşlemi</h3>
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Birden fazla kalemi tek seferde işleme alın.</p>
+                                    </div>
                                 </div>
-                                <button onClick={resetModal} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}><X size={32} /></button>
+                                <button
+                                    onClick={resetModal}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid var(--border)',
+                                        color: 'var(--muted-foreground)',
+                                        cursor: 'pointer',
+                                        width: '40px',
+                                        height: '40px',
+                                        borderRadius: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: '0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                ><X size={24} /></button>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', overflow: 'hidden' }}>
                                 {/* Left: Form */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingRight: '1rem', borderRight: '1px solid var(--border)', overflowY: 'auto' }}>
-                                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--primary)', letterSpacing: '0.05em' }}>1. GENEL BİLGİLER</h4>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingRight: '1.5rem', borderRight: '1px solid var(--border)', overflowY: 'auto' }}>
+                                    <div style={{
+                                        background: 'rgba(255,255,255,0.02)',
+                                        padding: '1.5rem',
+                                        borderRadius: '20px',
+                                        border: '1px solid var(--border)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '1.25rem'
+                                    }}>
+                                        <div>
+                                            <h4 style={{ fontSize: '0.75rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--primary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>1. GENEL BİLGİLER</h4>
                                             <div>
-                                                <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.4rem', display: 'block' }}>İşlem Tipi</label>
-                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>İşlem Tipi</label>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                                     <button
                                                         onClick={() => setSharedData({ ...sharedData, type: 'Giriş', location: 'Takımhane' })}
-                                                        style={{ flex: 1, padding: '0.5rem', borderRadius: '8px', background: sharedData.type === 'Giriş' ? '#4ade80' : 'rgba(255,255,255,0.05)', color: sharedData.type === 'Giriş' ? 'black' : 'white', border: 'none', cursor: 'pointer', fontWeight: 700 }}
-                                                    >Giriş</button>
+                                                        style={{
+                                                            padding: '0.75rem',
+                                                            borderRadius: '12px',
+                                                            background: sharedData.type === 'Giriş' ? '#4ade80' : 'rgba(255,255,255,0.03)',
+                                                            color: sharedData.type === 'Giriş' ? 'black' : 'var(--muted-foreground)',
+                                                            border: '1px solid ' + (sharedData.type === 'Giriş' ? '#4ade80' : 'var(--border)'),
+                                                            cursor: 'pointer',
+                                                            fontWeight: 800,
+                                                            transition: '0.2s',
+                                                            letterSpacing: '0.05em'
+                                                        }}
+                                                    >GİRİŞ</button>
                                                     <button
                                                         onClick={() => {
                                                             setLocationType('genel');
                                                             setSharedData({ ...sharedData, type: 'Çıkış', location: 'Fabrika İşleri' });
                                                         }}
-                                                        style={{ flex: 1, padding: '0.5rem', borderRadius: '8px', background: sharedData.type === 'Çıkış' ? '#ef4444' : 'rgba(255,255,255,0.05)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 700 }}
-                                                    >Çıkış</button>
-                                                </div>
-                                            </div>
-
-                                            <div style={{ minHeight: '115px', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                                {sharedData.type === 'Çıkış' ? (
-                                                    <>
-                                                        <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Lokasyon / Proje</label>
-                                                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
-                                                            <label style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}>
-                                                                <input type="radio" checked={locationType === 'genel'} onChange={() => { setLocationType('genel'); setSharedData({ ...sharedData, location: 'Fabrika İşleri' }) }} /> Genel
-                                                            </label>
-                                                            <label style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}>
-                                                                <input type="radio" checked={locationType === 'proje'} onChange={() => { setLocationType('proje'); setSharedData({ ...sharedData, location: '' }) }} /> Proje
-                                                            </label>
-                                                        </div>
-                                                        {locationType === 'genel' ? (
-                                                            <select className="input-field" value={sharedData.location} onChange={e => setSharedData({ ...sharedData, location: e.target.value })}>
-                                                                <option value="">Seçiniz...</option>
-                                                                {definitions.filter(d => d.type === 'location').map(d => <option key={d.id} value={d.value}>{d.value}</option>)}
-                                                            </select>
-                                                        ) : (
-                                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                                <select className="input-field" style={{ flex: 1 }} value={selectedProject} onChange={e => { setSelectedProject(e.target.value); setSelectedMachine('') }}>
-                                                                    <option value="">Proje...</option>
-                                                                    {definitions.filter(d => d.type === 'project').map(d => <option key={d.id} value={d.id}>{d.value}</option>)}
-                                                                </select>
-                                                                <select className="input-field" style={{ flex: 1 }} value={selectedMachine} onChange={e => {
-                                                                    const proj = definitions.find(d => d.id === selectedProject)?.value;
-                                                                    setSelectedMachine(e.target.value);
-                                                                    setSharedData({ ...sharedData, location: proj + " / " + e.target.value });
-                                                                }} disabled={!selectedProject}>
-                                                                    <option value="">Makine...</option>
-                                                                    {definitions.filter(d => d.type === 'machine' && d.parent_id === selectedProject).map(d => <option key={d.id} value={d.value}>{d.value}</option>)}
-                                                                </select>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <div style={{ textAlign: 'center' }}>
-                                                        <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Lokasyon / Proje</label>
-                                                        <div style={{ padding: '0.75rem', color: '#4ade80', fontWeight: 800, fontSize: '1rem', background: 'rgba(74, 222, 128, 0.05)', borderRadius: '8px' }}>
-                                                            TAKIMHANE (Otomatik)
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                                <div>
-                                                    <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>Bölüm</label>
-                                                    <select
-                                                        className="input-field"
-                                                        value={sharedData.department}
-                                                        onChange={e => setSharedData({ ...sharedData, department: e.target.value })}
-                                                    >
-                                                        <option value="">Bölüm Seçiniz...</option>
-                                                        {deptsList.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>Teslim Alan/Veren</label>
-                                                    <select
-                                                        className="input-field"
-                                                        value={sharedData.reciever_sender}
-                                                        onChange={e => setSharedData({ ...sharedData, reciever_sender: e.target.value })}
-                                                    >
-                                                        <option value="">Personel Seçiniz...</option>
-                                                        {profilesList.filter(p => !sharedData.department || p.department === sharedData.department).map(p => <option key={p.id} value={p.full_name}>{p.full_name}</option>)}
-                                                    </select>
+                                                        style={{
+                                                            padding: '0.75rem',
+                                                            borderRadius: '12px',
+                                                            background: sharedData.type === 'Çıkış' ? '#ef4444' : 'rgba(255,255,255,0.03)',
+                                                            color: sharedData.type === 'Çıkış' ? 'white' : 'var(--muted-foreground)',
+                                                            border: '1px solid ' + (sharedData.type === 'Çıkış' ? '#ef4444' : 'var(--border)'),
+                                                            cursor: 'pointer',
+                                                            fontWeight: 800,
+                                                            transition: '0.2s',
+                                                            letterSpacing: '0.05em'
+                                                        }}
+                                                    >ÇIKIŞ</button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setLocationType('genel');
+                                                            setSharedData({ ...sharedData, type: 'Zimmet', location: 'Kişisel Zimmet' });
+                                                        }}
+                                                        style={{
+                                                            padding: '0.75rem',
+                                                            borderRadius: '12px',
+                                                            background: sharedData.type === 'Zimmet' ? '#3b82f6' : 'rgba(255,255,255,0.03)',
+                                                            color: sharedData.type === 'Zimmet' ? 'white' : 'var(--muted-foreground)',
+                                                            border: '1px solid ' + (sharedData.type === 'Zimmet' ? '#3b82f6' : 'var(--border)'),
+                                                            cursor: 'pointer',
+                                                            fontWeight: 800,
+                                                            transition: '0.2s',
+                                                            letterSpacing: '0.05em'
+                                                        }}
+                                                    >ZİMMET</button>
+                                                    <button
+                                                        disabled
+                                                        style={{
+                                                            padding: '0.75rem',
+                                                            borderRadius: '12px',
+                                                            background: 'rgba(255,255,255,0.01)',
+                                                            color: 'rgba(255,255,255,0.1)',
+                                                            border: '1px solid var(--border)',
+                                                            cursor: 'not-allowed',
+                                                            fontWeight: 800,
+                                                            opacity: 0.5,
+                                                            letterSpacing: '0.05em'
+                                                        }}
+                                                        title="Yakında eklenecek..."
+                                                    >HURDA</button>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
-                                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--primary)', letterSpacing: '0.05em' }}>2. KALEM EKLE</h4>
+                                        <div style={{ minHeight: '115px', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                            {sharedData.type === 'Çıkış' || sharedData.type === 'Zimmet' ? (
+                                                <>
+                                                    <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Lokasyon / Proje</label>
+                                                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
+                                                        <label style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}>
+                                                            <input type="radio" checked={locationType === 'genel'} onChange={() => { setLocationType('genel'); setSharedData({ ...sharedData, location: 'Fabrika İşleri' }) }} /> Genel
+                                                        </label>
+                                                        <label style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}>
+                                                            <input type="radio" checked={locationType === 'proje'} onChange={() => { setLocationType('proje'); setSharedData({ ...sharedData, location: '' }) }} /> Proje
+                                                        </label>
+                                                    </div>
+                                                    {locationType === 'genel' ? (
+                                                        <select className="input-field" value={sharedData.location} onChange={e => setSharedData({ ...sharedData, location: e.target.value })}>
+                                                            <option value="">Seçiniz...</option>
+                                                            {definitions.filter(d => d.type === 'location').map(d => <option key={d.id} value={d.value}>{d.value}</option>)}
+                                                        </select>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                            <select className="input-field" style={{ flex: 1 }} value={selectedProject} onChange={e => { setSelectedProject(e.target.value); setSelectedMachine('') }}>
+                                                                <option value="">Proje...</option>
+                                                                {definitions.filter(d => d.type === 'project').map(d => <option key={d.id} value={d.id}>{d.value}</option>)}
+                                                            </select>
+                                                            <select className="input-field" style={{ flex: 1 }} value={selectedMachine} onChange={e => {
+                                                                const proj = definitions.find(d => d.id === selectedProject)?.value;
+                                                                setSelectedMachine(e.target.value);
+                                                                setSharedData({ ...sharedData, location: proj + " / " + e.target.value });
+                                                            }} disabled={!selectedProject}>
+                                                                <option value="">Makine...</option>
+                                                                {definitions.filter(d => d.type === 'machine' && d.parent_id === selectedProject).map(d => <option key={d.id} value={d.value}>{d.value}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Lokasyon / Proje</label>
+                                                    <div style={{ padding: '0.75rem', color: '#4ade80', fontWeight: 800, fontSize: '1rem', background: 'rgba(74, 222, 128, 0.05)', borderRadius: '8px' }}>
+                                                        TAKIMHANE (Otomatik)
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                            <div>
+                                                <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>Bölüm</label>
+                                                <select
+                                                    className="input-field"
+                                                    value={sharedData.department}
+                                                    onChange={e => setSharedData({ ...sharedData, department: e.target.value })}
+                                                >
+                                                    <option value="">Bölüm Seçiniz...</option>
+                                                    {deptsList.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>Teslim Alan/Veren</label>
+                                                <select
+                                                    className="input-field"
+                                                    value={sharedData.reciever_sender}
+                                                    onChange={e => setSharedData({ ...sharedData, reciever_sender: e.target.value })}
+                                                >
+                                                    <option value="">Personel Seçiniz...</option>
+                                                    {profilesList.filter(p => !sharedData.department || p.department === sharedData.department).map(p => <option key={p.id} value={p.full_name}>{p.full_name}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Item Entry and Basket */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflow: 'hidden' }}>
+                                    <div style={{
+                                        background: 'rgba(59, 130, 246, 0.03)',
+                                        padding: '1.5rem',
+                                        borderRadius: '20px',
+                                        border: '1px solid rgba(59, 130, 246, 0.1)',
+                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
+                                    }}>
+                                        <h4 style={{ fontSize: '0.75rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--primary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>2. KALEM EKLE</h4>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                             <div style={{ position: 'relative' }}>
-                                                <input className="input-field" value={formData.item_no} onChange={e => handleItemSearch('item_no', e.target.value)} placeholder="Parça Kodu Ara..." />
+                                                <input className="input-field" style={{ borderRadius: '12px' }} value={formData.item_no} onChange={e => handleItemSearch('item_no', e.target.value)} placeholder="Parça Kodu Ara..." />
                                             </div>
                                             <div style={{ position: 'relative' }}>
-                                                <input className="input-field" value={formData.item_description} onChange={e => handleItemSearch('item_description', e.target.value)} placeholder="Ürün Tanımı..." />
+                                                <input className="input-field" style={{ borderRadius: '12px' }} value={formData.item_description} onChange={e => handleItemSearch('item_description', e.target.value)} placeholder="Ürün Tanımı..." />
                                                 {showSuggestions && itemSuggestions.length > 0 && (
-                                                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', zIndex: 100, marginTop: '2px', boxShadow: '0 5px 15px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
+                                                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', zIndex: 100, marginTop: '5px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', overflow: 'hidden', backdropFilter: 'blur(20px)' }}>
                                                         {itemSuggestions.map((it, idx) => (
-                                                            <div key={it.id} onClick={() => selectItem(it)} style={{ padding: '0.6rem 1rem', cursor: 'pointer', borderBottom: idx === itemSuggestions.length - 1 ? 'none' : '1px solid var(--border)', fontSize: '0.8rem' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                                {it.item_no} - {it.item_description}
+                                                            <div key={it.id} onClick={() => selectItem(it)} style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: idx === itemSuggestions.length - 1 ? 'none' : '1px solid var(--border)', fontSize: '0.85rem', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                                <div style={{ fontWeight: 700 }}>{it.item_no}</div>
+                                                                <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{it.item_description} {it.is_calibration ? `(SN: ${it.serial_no})` : ''}</div>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 )}
                                             </div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px', gap: '1rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '1rem' }}>
                                                 <input
                                                     readOnly
                                                     className="input-field"
-                                                    style={{ background: 'rgba(255,255,255,0.02)', cursor: 'not-allowed', color: 'rgba(255,255,255,0.5)' }}
-                                                    value={formData.measurement_description}
-                                                    placeholder="Ölçü / Özellik (Otomatik Şekilde Dolacaktır)"
+                                                    style={{ background: 'rgba(255,255,255,0.02)', cursor: 'not-allowed', color: formData.is_calibration ? 'var(--primary)' : 'rgba(255,255,255,0.5)', fontWeight: formData.is_calibration ? 800 : 400, borderRadius: '12px' }}
+                                                    value={formData.is_calibration ? (formData.serial_no || '') : (formData.measurement_description || '')}
+                                                    placeholder={formData.is_calibration ? "Seri No (Otomatik)" : "Ölçü / Özellik (Otomatik)"}
                                                 />
-                                                <input type="number" className="input-field" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: parseInt(e.target.value) })} />
+                                                <input type="number" className="input-field" style={{ borderRadius: '12px', textAlign: 'center', fontWeight: 800 }} value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: parseInt(e.target.value) })} />
                                             </div>
-                                            <button type="button" onClick={addToBasket} style={{ padding: '0.75rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>
+                                            <button
+                                                type="button"
+                                                onClick={addToBasket}
+                                                style={{
+                                                    padding: '1rem',
+                                                    background: 'var(--primary)',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '12px',
+                                                    fontWeight: 900,
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 10px 20px rgba(59, 130, 246, 0.2)',
+                                                    transition: '0.2s',
+                                                    letterSpacing: '0.05em'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                                            >
                                                 LİSTEYE EKLE
                                             </button>
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* Right: Basket */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflow: 'hidden' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <h4 style={{ fontSize: '0.9rem', fontWeight: 800 }}>İşlem Listesi ({basket.length})</h4>
-                                        {basket.length > 0 && <span style={{ fontSize: '0.7rem', color: '#4ade80', fontWeight: 700 }}>YÖNETİCİ ONAYI BEKLİYOR</span>}
-                                    </div>
-                                    <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--border)', padding: '0.5rem' }}>
-                                        {basket.length === 0 ? (
-                                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
-                                                <ShoppingCart size={48} />
-                                                <p style={{ marginTop: '1rem' }}>Sepetiniz Şu An Boş</p>
-                                            </div>
-                                        ) : (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                {basket.map((it) => (
-                                                    <div key={it.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                                                        <div style={{ flex: 1 }}>
-                                                            <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{it.item_description}</div>
-                                                            <div style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>{it.item_no} | {it.measurement_description}</div>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', overflow: 'hidden' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <h4 style={{ fontSize: '0.9rem', fontWeight: 800 }}>İşlem Listesi ({basket.length})</h4>
+                                        </div>
+                                        <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--border)', padding: '0.5rem' }}>
+                                            {basket.length === 0 ? (
+                                                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
+                                                    <ShoppingCart size={48} />
+                                                    <p style={{ marginTop: '1rem' }}>Sepetiniz Şu An Boş</p>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                    {basket.map((it) => (
+                                                        <div key={it.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{it.item_description}</div>
+                                                                <div style={{ fontSize: '0.7rem', color: it.is_calibration ? 'var(--primary)' : 'var(--muted-foreground)', fontWeight: it.is_calibration ? 700 : 400 }}>
+                                                                    {it.item_no} | {it.is_calibration ? (`SN: ${it.serial_no}`) : it.measurement_description}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                                <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--primary)', background: 'rgba(59, 130, 246, 0.1)', minWidth: '40px', textAlign: 'center', padding: '0.25rem', borderRadius: '6px' }}>{it.quantity}</div>
+                                                                <button onClick={() => removeFromBasket(it.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.5rem' }}>
+                                                                    <Trash2 size={18} />
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                            <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--primary)', background: 'rgba(59, 130, 246, 0.1)', minWidth: '40px', textAlign: 'center', padding: '0.25rem', borderRadius: '6px' }}>{it.quantity}</div>
-                                                            <button onClick={() => removeFromBasket(it.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.5rem' }}>
-                                                                <Trash2 size={18} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={handleSaveBatch}
+                                            disabled={basket.length === 0 || loading}
+                                            style={{
+                                                width: '100%',
+                                                padding: '1.25rem',
+                                                background: loading ? 'gray' : 'linear-gradient(45deg, #3b82f6, #2563eb)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '12px',
+                                                fontWeight: 900,
+                                                fontSize: '1.1rem',
+                                                cursor: basket.length === 0 || loading ? 'not-allowed' : 'pointer',
+                                                boxShadow: '0 10px 30px rgba(59, 130, 246, 0.4)',
+                                                transition: '0.3s'
+                                            }}
+                                        >
+                                            {loading ? 'KAYDEDİLİYOR...' : `TÜMÜNÜ KAYDET (${basket.length} KALEM)`}
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={handleSaveBatch}
-                                        disabled={basket.length === 0 || loading}
-                                        style={{
-                                            width: '100%',
-                                            padding: '1.25rem',
-                                            background: loading ? 'gray' : 'linear-gradient(45deg, #3b82f6, #2563eb)',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '12px',
-                                            fontWeight: 900,
-                                            fontSize: '1.1rem',
-                                            cursor: basket.length === 0 || loading ? 'not-allowed' : 'pointer',
-                                            boxShadow: '0 10px 30px rgba(59, 130, 246, 0.4)',
-                                            transition: '0.3s'
-                                        }}
-                                    >
-                                        {loading ? 'KAYDEDİLİYOR...' : `TÜMÜNÜ KAYDET (${basket.length} KALEM)`}
-                                    </button>
                                 </div>
                             </div>
                         </div>

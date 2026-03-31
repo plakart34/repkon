@@ -91,7 +91,9 @@ export default function RolesPage() {
                 { path: 'view_toolroom_stock', name: 'Stok Durumu Görüntüleme' },
                 { path: 'view_toolroom_datesheet', name: 'Datesheet Görüntüleme' },
                 { path: 'view_toolroom_definitions', name: 'Tanımlamalar Görüntüleme' },
+                { path: 'view_toolroom_calibration', name: 'Kalibrasyon Takip Görüntüleme' },
                 { path: 'manage_toolroom_items', name: 'Ürün & Envanter Yönetimi (Ekle/Edit/Sil)' },
+                { path: 'manage_toolroom_calibration', name: 'Kalibrasyon Kaydı Yönetimi (Ekle/Edit/Sil)' },
                 { path: 'toolroom_in_out', name: 'Ürün Giriş - Çıkış İşlemleri Yapma' },
                 { path: 'delete_toolroom_transaction', name: 'Geçmiş Kayıtları Silme (Geri Alım)' }
             ]

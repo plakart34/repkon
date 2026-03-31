@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Sidebar from '@/components/Sidebar'
 import {
-    Database,
+    ClipboardCheck,
     Plus,
     Search,
     Download,
@@ -15,21 +15,18 @@ import {
     X,
     Filter,
     Package,
-    BarChart3,
-    Tag,
-    MapPin,
     Calendar,
     CircleDollarSign,
-    Menu,
+    Shield,
     AlertTriangle
 } from 'lucide-react'
 
-export default function ToolroomDatesheetPage() {
+export default function CalibrationTrackingPage() {
     const { profile, loading: authLoading } = usePermissions()
     const router = useRouter()
 
-    const canView = profile?.roles?.permissions?.includes('view_toolroom_datesheet') || profile?.roles?.name === 'Admin'
-    const canManage = profile?.roles?.permissions?.includes('manage_toolroom_items') || profile?.roles?.name === 'Admin'
+    const canView = profile?.roles?.permissions?.includes('view_toolroom_calibration') || profile?.roles?.name === 'Admin'
+    const canManage = profile?.roles?.permissions?.includes('manage_toolroom_calibration') || profile?.roles?.name === 'Admin'
 
     const [items, setItems] = useState([])
     const [loading, setLoading] = useState(true)
@@ -41,19 +38,16 @@ export default function ToolroomDatesheetPage() {
         manufacturer_code: '',
         item_no: '',
         item_description: '',
-        measurement_description: '',
+        serial_no: '',
         supplier: '',
         price: '',
         main_group: '',
         sub_group_1: '',
         sub_group_2: '',
         quantity: 0,
-        critical_stock: 0,
         location: '',
-        count_date: new Date().toISOString().split('T')[0],
-        is_calibration: false,
-        serial_no: '',
-        calibration_date: new Date().toISOString().split('T')[0]
+        calibration_date: new Date().toISOString().split('T')[0],
+        is_calibration: true // This is always true on this page
     })
 
     const [definitions, setDefinitions] = useState([])
@@ -63,6 +57,7 @@ export default function ToolroomDatesheetPage() {
         const { data, error } = await supabase
             .from('toolroom_items')
             .select('*')
+            .eq('is_calibration', true)
             .order('sequence_no', { ascending: false })
 
         if (!error) setItems(data || [])
@@ -83,24 +78,20 @@ export default function ToolroomDatesheetPage() {
 
     const getDefOptions = (type, parentValue = null) => {
         if (!parentValue) {
-            // Only return items with NO parent if parentValue is null (except for Main Group)
             return definitions.filter(d => d.type === type).map(d => d.value)
         }
-
-        // Find parent ID by its value
         const parent = definitions.find(d => d.value === parentValue)
         if (!parent) return []
-
         return definitions.filter(d => d.type === type && d.parent_id === parent.id).map(d => d.value)
     }
 
     const handleOpenModal = (item = null) => {
         if (item && !canManage) {
-            alert('Bu ürünü düzenlemek için yetkiniz bulunmamaktadır.');
+            alert('Bu kaydı düzenlemek için yetkiniz bulunmamaktadır.');
             return;
         }
         if (!item && !canManage) {
-            alert('Yeni ürün eklemek için yetkiniz bulunmamaktadır.');
+            alert('Yeni kayıt eklemek için yetkiniz bulunmamaktadır.');
             return;
         }
         if (item) {
@@ -109,19 +100,16 @@ export default function ToolroomDatesheetPage() {
                 manufacturer_code: item.manufacturer_code || '',
                 item_no: item.item_no || '',
                 item_description: item.item_description || '',
-                measurement_description: item.measurement_description || '',
+                serial_no: item.serial_no || '',
                 supplier: item.supplier || '',
                 price: item.price || '',
                 main_group: item.main_group || '',
                 sub_group_1: item.sub_group_1 || '',
                 sub_group_2: item.sub_group_2 || '',
                 quantity: item.quantity || 0,
-                critical_stock: item.critical_stock || 0,
                 location: item.location || '',
-                count_date: item.count_date ? new Date(item.count_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                is_calibration: item.is_calibration || false,
-                serial_no: item.serial_no || '',
-                calibration_date: item.calibration_date ? new Date(item.calibration_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+                calibration_date: item.calibration_date ? new Date(item.calibration_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                is_calibration: true
             })
         } else {
             setEditingItem(null)
@@ -129,19 +117,16 @@ export default function ToolroomDatesheetPage() {
                 manufacturer_code: '',
                 item_no: '',
                 item_description: '',
-                measurement_description: '',
+                serial_no: '',
                 supplier: '',
                 price: '',
                 main_group: '',
                 sub_group_1: '',
                 sub_group_2: '',
                 quantity: 0,
-                critical_stock: 0,
                 location: '',
-                count_date: new Date().toISOString().split('T')[0],
-                is_calibration: false,
-                serial_no: '',
-                calibration_date: new Date().toISOString().split('T')[0]
+                calibration_date: new Date().toISOString().split('T')[0],
+                is_calibration: true
             })
         }
         setIsModalOpen(true)
@@ -152,11 +137,7 @@ export default function ToolroomDatesheetPage() {
         const payload = {
             ...formData,
             price: formData.price === '' ? null : parseFloat(formData.price),
-            quantity: parseInt(formData.quantity) || 0,
-            critical_stock: parseInt(formData.critical_stock) || 0,
-            serial_no: formData.is_calibration ? formData.serial_no : null,
-            calibration_date: formData.is_calibration ? formData.calibration_date : null,
-            measurement_description: formData.is_calibration ? null : formData.measurement_description
+            quantity: parseInt(formData.quantity) || 0
         }
 
         let error
@@ -185,7 +166,7 @@ export default function ToolroomDatesheetPage() {
             alert('Silme yetkiniz bulunmamaktadır.');
             return;
         }
-        if (!confirm('Bu ürünü silmek istediğinizden emin misiniz?')) return
+        if (!confirm('Bu kaydı silmek istediğinizden emin misiniz?')) return
         const { error } = await supabase.from('toolroom_items').delete().eq('id', id)
         if (error) alert(error.message)
         else {
@@ -200,6 +181,7 @@ export default function ToolroomDatesheetPage() {
     const filtered = items.filter(t =>
         t.item_description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.item_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.serial_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.manufacturer_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
     )
@@ -212,7 +194,7 @@ export default function ToolroomDatesheetPage() {
                     <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
                         <Shield style={{ opacity: 0.2, marginBottom: '1rem' }} size={64} />
                         <h2>Yetkisiz Erişim</h2>
-                        <p style={{ color: 'var(--muted-foreground)' }}>Takımhane Datasheet modülünü görüntüleme yetkiniz bulunmamaktadır.</p>
+                        <p style={{ color: 'var(--muted-foreground)' }}>Kalibrasyon Takip modülünü görüntüleme yetkiniz bulunmamaktadır.</p>
                         <button className="btn btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => router.push('/')}>Ana Sayfaya Dön</button>
                     </div>
                 </main>
@@ -228,18 +210,13 @@ export default function ToolroomDatesheetPage() {
                 <header className="header" style={{ marginBottom: '2.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <div style={{ padding: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', borderRadius: '12px' }}>
-                            <Database size={24} />
+                            <ClipboardCheck size={24} />
                         </div>
                         <div>
-                            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Takımhane Datasheet</h2>
-                            <p style={{ color: 'var(--muted-foreground)' }}>Takımhane envanter kataloğu ve detaylı ürün listesi.</p>
+                            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Kalibrasyon Takip Listesi</h2>
+                            <p style={{ color: 'var(--muted-foreground)' }}>Ölçüm aletleri ve ekipman kalibrasyon takip kataloğu.</p>
                         </div>
                     </div>
-                    {canManage && (
-                        <button className="btn btn-primary" onClick={() => handleOpenModal()}>
-                            <Plus size={20} style={{ marginRight: '0.5rem' }} /> Yeni Ürün Ekle
-                        </button>
-                    )}
                 </header>
 
                 <div style={{
@@ -258,7 +235,7 @@ export default function ToolroomDatesheetPage() {
                             <Search size={18} style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)', opacity: 0.6 }} />
                             <input
                                 type="text"
-                                placeholder="Kalem No, Tanım, Üretici veya Tedarikçi ara..."
+                                placeholder="Kalem No, Tanım, Seri No veya Tedarikçi ara..."
                                 className="input-field"
                                 style={{
                                     paddingLeft: '3.25rem',
@@ -290,47 +267,39 @@ export default function ToolroomDatesheetPage() {
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Üretici Kodu</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Kalem No</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Kalem Tanımı</th>
-                                <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Ölçü Açıklaması</th>
+                                <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Seri No</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Tedarikçi</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Fiyat</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Ana Grup</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Ara Grup</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Alt Grup</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Miktar</th>
-                                <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Kritik Seviye</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Lokasyon</th>
-                                <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Sayım Tarihi</th>
+                                <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em' }}>Kalibrasyon Tarihi</th>
                                 <th style={{ padding: '0.75rem 0.5rem', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.05em', textAlign: 'center' }}>İşlemler</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan="15" style={{ padding: '3rem', textAlign: 'center' }}>Yükleniyor...</td></tr>
+                                <tr><td colSpan="14" style={{ padding: '3rem', textAlign: 'center' }}>Yükleniyor...</td></tr>
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan="15" style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>Kayıt bulunamadı.</td></tr>
+                                <tr><td colSpan="14" style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>Kayıt bulunamadı.</td></tr>
                             ) : filtered.map(t => (
                                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: '0.2s', cursor: 'pointer' }} className="table-row-hover" onClick={() => handleOpenModal(t)}>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', opacity: 0.5 }}>{t.sequence_no}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem' }}>{t.manufacturer_code || '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', fontWeight: 600 }}>{t.item_no || '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem' }}>{t.item_description}</td>
-                                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{t.measurement_description || '-'}</td>
+                                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{t.serial_no || '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem' }}>{t.supplier || '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem' }}>{t.price ? `${t.price} ₺` : '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem' }}>{t.main_group || '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem' }}>{t.sub_group_1 || '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem' }}>{t.sub_group_2 || '-'}</td>
-                                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontWeight: 800 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            {t.quantity || 0}
-                                            {t.quantity <= (t.critical_stock || 0) && t.quantity > 0 && <AlertTriangle size={14} style={{ color: '#f59e0b' }} title="Kritik Seviye Altında!" />}
-                                            {t.quantity === 0 && <AlertTriangle size={14} style={{ color: '#ef4444' }} title="Stok Tükendi!" />}
-                                        </div>
-                                    </td>
-                                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>{t.critical_stock || 0}</td>
+                                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontWeight: 800 }}>{t.quantity || 0}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>{t.location || '-'}</td>
                                     <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
-                                        {t.count_date ? new Date(t.count_date).toLocaleDateString('tr-TR') : '-'}
+                                        {t.calibration_date ? new Date(t.calibration_date).toLocaleDateString('tr-TR') : '-'}
                                     </td>
                                     <td style={{ padding: '0.75rem 0.5rem' }} onClick={(e) => e.stopPropagation()}>
                                         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
@@ -366,8 +335,8 @@ export default function ToolroomDatesheetPage() {
                         <div className="card animate-scale-in" style={{ width: '800px', maxWidth: '95%', padding: '2.5rem', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ padding: '0.5rem', background: 'var(--primary)', borderRadius: '10px' }}><Plus size={24} /></div>
-                                    <h3 style={{ fontWeight: 800 }}>{editingItem ? 'Ürünü Düzenle' : 'Yeni Ürün Ekle'}</h3>
+                                    <div style={{ padding: '0.5rem', background: 'var(--primary)', borderRadius: '10px' }}><ClipboardCheck size={24} /></div>
+                                    <h3 style={{ fontWeight: 800 }}>{editingItem ? 'Kaydı Düzenle' : 'Yeni Kayıt Ekle'}</h3>
                                 </div>
                                 <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}><X size={32} /></button>
                             </div>
@@ -384,46 +353,18 @@ export default function ToolroomDatesheetPage() {
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', alignItems: 'end' }}>
-                                    <div>
-                                        <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Kalem Tanımı (Ürün Adı)</label>
-                                        <div style={{ position: 'relative' }}>
-                                            <Package size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-                                            <input required className="input-field" style={{ paddingLeft: '3rem' }} value={formData.item_description} onChange={e => setFormData({ ...formData, item_description: e.target.value })} placeholder="Ürün Adı" />
-                                        </div>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '42px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '12px', padding: '0 1rem' }}>
-                                        <input
-                                            type="checkbox"
-                                            id="is_calibration"
-                                            checked={formData.is_calibration}
-                                            onChange={e => setFormData({ ...formData, is_calibration: e.target.checked })}
-                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                        />
-                                        <label htmlFor="is_calibration" style={{ fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', color: formData.is_calibration ? 'var(--primary)' : 'var(--muted-foreground)' }}>Kalibrasyonlu Ürün mü?</label>
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Kalem Tanımı (Ürün Adı)</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <Package size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+                                        <input required className="input-field" style={{ paddingLeft: '3rem' }} value={formData.item_description} onChange={e => setFormData({ ...formData, item_description: e.target.value })} placeholder="Ürün Adı" />
                                     </div>
                                 </div>
 
-                                {formData.is_calibration ? (
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px dashed var(--primary)' }}>
-                                        <div>
-                                            <label style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Cihaz Seri No</label>
-                                            <input required className="input-field" value={formData.serial_no} onChange={e => setFormData({ ...formData, serial_no: e.target.value })} placeholder="SN-XXXX" />
-                                        </div>
-                                        <div>
-                                            <label style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Kalibrasyon Tarihi</label>
-                                            <div style={{ position: 'relative' }}>
-                                                <Calendar size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-                                                <input type="date" required className="input-field" style={{ paddingLeft: '3rem' }} value={formData.calibration_date} onChange={e => setFormData({ ...formData, calibration_date: e.target.value })} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Ölçü Açıklaması</label>
-                                        <input className="input-field" value={formData.measurement_description} onChange={e => setFormData({ ...formData, measurement_description: e.target.value })} placeholder="150mm, HSS, etc." />
-                                    </div>
-                                )}
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Seri No</label>
+                                    <input required className="input-field" value={formData.serial_no} onChange={e => setFormData({ ...formData, serial_no: e.target.value })} placeholder="Cihaz Seri Numarası" />
+                                </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div>
@@ -486,18 +427,12 @@ export default function ToolroomDatesheetPage() {
                                         <input type="number" required className="input-field" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: parseInt(e.target.value) })} />
                                     </div>
                                     <div>
-                                        <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Kritik Stok</label>
-                                        <input type="number" className="input-field" style={{ color: '#f59e0b', fontWeight: 700 }} value={formData.critical_stock} onChange={e => setFormData({ ...formData, critical_stock: parseInt(e.target.value) })} placeholder="Min. Seviye" />
-                                    </div>
-                                    <div>
-                                        <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Sayım Tarihi</label>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Kalibrasyon Tarihi</label>
                                         <div style={{ position: 'relative' }}>
                                             <Calendar size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-                                            <input type="date" className="input-field" style={{ paddingLeft: '3rem' }} value={formData.count_date} onChange={e => setFormData({ ...formData, count_date: e.target.value })} />
+                                            <input type="date" required className="input-field" style={{ paddingLeft: '3rem' }} value={formData.calibration_date} onChange={e => setFormData({ ...formData, calibration_date: e.target.value })} />
                                         </div>
                                     </div>
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
                                     <div>
                                         <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Lokasyon</label>
                                         <select className="input-field" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })}>
@@ -519,7 +454,7 @@ export default function ToolroomDatesheetPage() {
                                         </button>
                                     )}
                                     <button type="submit" className="btn btn-primary" style={{ flex: editingItem ? 2 : 1, padding: '1.25rem', fontWeight: 800, fontSize: '1rem' }}>
-                                        {editingItem ? 'DEĞİŞİKLİKLERİ KAYDET' : 'ÜRÜNÜ SİSTEME EKLE'}
+                                        {editingItem ? 'DEĞİŞİKLİKLERİ KAYDET' : 'KAYDI SİSTEME EKLE'}
                                     </button>
                                 </div>
                             </form>
