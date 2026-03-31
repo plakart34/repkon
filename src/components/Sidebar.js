@@ -182,7 +182,8 @@ export default function Sidebar({ profile }) {
         '/takimhane/datesheet': 'view_toolroom_datesheet',
         '/takimhane/stock': 'view_toolroom_stock',
         '/takimhane/definitions': 'view_toolroom_definitions',
-        '/takimhane/calibration': 'view_toolroom_calibration'
+        '/takimhane/calibration': 'view_toolroom_calibration',
+        '/takimhane/scrap': 'view_toolroom_scrap'
     }
 
     const canSee = (path) => isAdmin || permissions.includes(permissionMap[path])
@@ -332,6 +333,7 @@ export default function Sidebar({ profile }) {
                                     { name: 'Stok Durumu', path: '/takimhane/stock' },
                                     { name: 'Datesheet', path: '/takimhane/datesheet' },
                                     { name: 'Kalibrasyon Takip', path: '/takimhane/calibration' },
+                                    { name: 'Hurda Takip', path: '/takimhane/scrap' },
                                     { name: 'Tanımlamalar', path: '/takimhane/definitions' }
                                 ]
                             } else {
